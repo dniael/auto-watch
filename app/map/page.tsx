@@ -9,7 +9,7 @@ import Link from "next/link"
 import { useState } from "react"
 import { useRef, useEffect } from "react"
 import mapboxgl from "mapbox-gl"
-import 'mapbox-gl/dist/mapbox-gl.css';
+import "mapbox-gl/dist/mapbox-gl.css"
 import Marker from "./marker"
 
 // Mock data for demonstration
@@ -54,22 +54,22 @@ const mockReports = [
   },
 ]
 
-mapboxgl.accessToken = 'pk.eyJ1IjoicGxhdGludW1jb3AiLCJhIjoiY21jNXU4bmoyMHR3ZjJsbzR0OWxpNjFkYSJ9.OHvYs3NyOpLGSMj1CMI1xg';
+mapboxgl.accessToken = "pk.eyJ1IjoicGxhdGludW1jb3AiLCJhIjoiY21jNXU4bmoyMHR3ZjJsbzR0OWxpNjFkYSJ9.OHvYs3NyOpLGSMj1CMI1xg"
 
 export default function MapPage() {
   const [selectedReport, setSelectedReport] = useState<any>(null)
-   const [mapReady, setMapReady] = useState(false);
+  const [mapReady, setMapReady] = useState(false)
   const [filter, setFilter] = useState("all")
 
   const mapRef = useRef<any>(null)
   const mapContainerRef = useRef<any>(null)
-  
+
   useEffect(() => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          const userLng = position.coords.longitude;
-          const userLat = position.coords.latitude;
+          const userLng = position.coords.longitude
+          const userLat = position.coords.latitude
 
           mapRef.current = new mapboxgl.Map({
             container: mapContainerRef.current!,
@@ -77,14 +77,14 @@ export default function MapPage() {
             zoom: 15,
             minZoom: 10,
             style: "mapbox://styles/mapbox/streets-v11",
-          });
+          })
 
           mapRef.current.on("load", () => {
-            setMapReady(true); // Enable marker once map is loaded
-          });
+            setMapReady(true) // Enable marker once map is loaded
+          })
         },
         (error) => {
-          console.error("Geolocation error:", error);
+          console.error("Geolocation error:", error)
 
           mapRef.current = new mapboxgl.Map({
             container: mapContainerRef.current!,
@@ -92,21 +92,20 @@ export default function MapPage() {
             zoom: 15,
             minZoom: 10,
             style: "mapbox://styles/mapbox/streets-v11",
-          });
+          })
 
           mapRef.current.on("load", () => {
-            setMapReady(true); // Enable marker once map is loaded
-          });
+            setMapReady(true) // Enable marker once map is loaded
+          })
         },
-        { enableHighAccuracy: true }
-      );
+        { enableHighAccuracy: true },
+      )
     }
 
     return () => {
-      mapRef.current?.remove();
-    };
-  }, []);
-
+      mapRef.current?.remove()
+    }
+  }, [])
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -139,45 +138,18 @@ export default function MapPage() {
 
       <div className="flex h-[calc(100vh-80px)]">
         {/* Map Area */}
-        <div className="flex-1 relative bg-gray-200" ref={mapContainerRef}/>
-      {mapReady && mapRef.current && (
-        <Marker
-          key={1}
-          map={mapRef.current}
-          feature={{
-            geometry: {
-              coordinates: [-79.3755984780575, 43.74082538389782],
-            },
-          }}
-        />
-      )}
-
-
-          {/* Placeholder for map */}
-
-          {/* Map pins overlay (simulated)
-          <div className="absolute inset-0 pointer-events-none">
-            {mockReports.map((report, index) => (
-              <div
-                key={report.id}
-                className={`absolute w-6 h-6 rounded-full border-2 border-white shadow-lg cursor-pointer pointer-events-auto ${
-                  report.type === "theft" ? "bg-red-600" : "bg-yellow-500"
-                }`}
-                style={{
-                  left: `${20 + index * 15}%`,
-                  top: `${30 + index * 10}%`,
-                }}
-                onClick={() => setSelectedReport(report)}
-              >
-                {report.type === "theft" ? (
-                  <AlertTriangle className="h-3 w-3 text-white m-0.5" />
-                ) : (
-                  <Eye className="h-3 w-3 text-white m-0.5" />
-                )}
-              </div>
-            ))}
-          </div> */}
-
+        <div className="flex-1 relative bg-gray-200" ref={mapContainerRef} />
+        {mapReady && mapRef.current && (
+          <Marker
+            key={1}
+            map={mapRef.current}
+            feature={{
+              geometry: {
+                coordinates: [-79.3755984780575, 43.74082538389782],
+              },
+            }}
+          />
+        )}
 
         {/* Sidebar */}
         <div className="w-80 bg-white border-l overflow-y-auto">
@@ -193,9 +165,9 @@ export default function MapPage() {
               {mockReports.map((report) => (
                 <Card
                   key={report.id}
-                  className={`cursor-pointer transition-colors ${
+                  className={`cursor-pointer transition-all duration-200 relative group ${
                     selectedReport?.id === report.id ? "ring-2 ring-blue-500" : ""
-                  }`}
+                  } ${report.type === "theft" ? "hover:shadow-md" : ""}`}
                   onClick={() => setSelectedReport(report)}
                 >
                   <CardHeader className="pb-2">
@@ -247,6 +219,32 @@ export default function MapPage() {
                       </>
                     )}
                   </CardContent>
+
+                  {/* Hover Button for Theft Reports */}
+                  {report.type === "theft" && (
+                    <div className="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 rounded-lg flex items-center justify-center">
+                      <Button
+                        size="sm"
+                        className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg transform scale-95 group-hover:scale-100 transition-transform duration-200"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          // Navigate to sighting page with vehicle data
+                          const vehicleData = encodeURIComponent(
+                            JSON.stringify({
+                              licensePlate: report.licensePlate,
+                              make: report.make,
+                              model: report.model,
+                              color: report.color,
+                              year: report.year,
+                            }),
+                          )
+                          window.location.href = `/sighting?vehicle=${vehicleData}`
+                        }}
+                      >
+                        <Eye className="h-4 w-4 mr-1" />I Saw This Car
+                      </Button>
+                    </div>
+                  )}
                 </Card>
               ))}
             </div>

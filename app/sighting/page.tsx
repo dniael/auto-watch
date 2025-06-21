@@ -10,11 +10,28 @@ import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { ArrowLeft, MapPin, Camera, Eye, AlertTriangle } from "lucide-react"
 import Link from "next/link"
-import { useState } from "react"
+import { useState, useMemo } from "react"
+import { useSearchParams } from "next/navigation"
 
 export default function SightingPage() {
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const searchParams = useSearchParams()
+
+  // Use useMemo to parse vehicle data only when search params change
+  const vehicleData = useMemo(() => {
+    const vehicleParam = searchParams.get("vehicle")
+    if (vehicleParam) {
+      try {
+        return JSON.parse(decodeURIComponent(vehicleParam))
+      } catch (error) {
+        console.error("Error parsing vehicle data:", error)
+        return null
+      }
+    }
+    return null
+  }, [searchParams])
 
   const getCurrentLocation = () => {
     if (navigator.geolocation) {
@@ -90,7 +107,13 @@ export default function SightingPage() {
               {/* License Plate */}
               <div className="space-y-2">
                 <Label htmlFor="license-plate">License Plate *</Label>
-                <Input id="license-plate" placeholder="ABC-1234" required className="text-lg font-mono" />
+                <Input
+                  id="license-plate"
+                  placeholder="ABC-1234"
+                  required
+                  className="text-lg font-mono"
+                  defaultValue={vehicleData?.licensePlate || ""}
+                />
                 <p className="text-sm text-gray-500">Enter the license plate exactly as you saw it</p>
               </div>
 
@@ -127,13 +150,24 @@ export default function SightingPage() {
               {/* Vehicle Details (Optional) */}
               <div className="space-y-4">
                 <Label>Additional Vehicle Details (Optional)</Label>
+                {vehicleData && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <AlertTriangle className="h-4 w-4 text-blue-600" />
+                      <span className="text-sm font-medium text-blue-900">Pre-filled from theft report</span>
+                    </div>
+                    <div className="text-sm text-blue-800">
+                      {vehicleData.year} {vehicleData.color} {vehicleData.make} {vehicleData.model}
+                    </div>
+                  </div>
+                )}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Input placeholder="Make (Toyota, Honda...)" />
-                  <Input placeholder="Model (Camry, Civic...)" />
+                  <Input placeholder="Make (Toyota, Honda...)" defaultValue={vehicleData?.make || ""} />
+                  <Input placeholder="Model (Camry, Civic...)" defaultValue={vehicleData?.model || ""} />
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Input placeholder="Color" />
-                  <Input placeholder="Year" type="number" />
+                  <Input placeholder="Color" defaultValue={vehicleData?.color || ""} />
+                  <Input placeholder="Year" type="number" defaultValue={vehicleData?.year || ""} />
                 </div>
               </div>
 
