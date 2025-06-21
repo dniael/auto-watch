@@ -13,6 +13,8 @@ import "@mapbox/mapbox-gl-geocoder/dist/mapbox-gl-geocoder.css";
 import "mapbox-gl/dist/mapbox-gl.css"
 import Marker from "./marker"
 import LocationMarker from "./location-marker"
+import { collection, getDocs } from "firebase/firestore"
+
 
 // Mock data for demonstration
 const mockReports = [
@@ -159,6 +161,9 @@ export default function MapPage() {
       }
     }
   }, [])
+
+  // useEffect(() => {
+    // Update map center when selected report changes
 
   return (
     <div className="min-h-screen bg-gray-50">
