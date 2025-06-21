@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input"
 import { ArrowLeft, MapPin, AlertTriangle, Eye, Search, Filter } from "lucide-react"
 import Link from "next/link"
 import { useState } from "react"
+import { useRef, useEffect } from "react"
+import mapboxgl from "mapbox-gl"
 
 // Mock data for demonstration
 const mockReports = [
@@ -54,6 +56,52 @@ export default function MapPage() {
   const [selectedReport, setSelectedReport] = useState<any>(null)
   const [filter, setFilter] = useState("all")
 
+  const mapRef = useRef<any>(null)
+  const mapContainerRef = useRef<any>(null)
+
+  useEffect(() => {
+    mapboxgl.accessToken = 'pk.eyJ1IjoicGxhdGludW1jb3AiLCJhIjoiY21jNXU4bmoyMHR3ZjJsbzR0OWxpNjFkYSJ9.OHvYs3NyOpLGSMj1CMI1xg'
+
+if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const userLng = position.coords.longitude;
+        const userLat = position.coords.latitude;
+
+        // Initialize the map using the user's real-time location
+        mapRef.current = new mapboxgl.Map({
+          container: mapContainerRef.current!,
+          center: [userLng, userLat],
+          zoom: 15,
+          minZoom: 10,
+          style: "mapbox://styles/mapbox/streets-v11",
+        });
+
+        // Optional: Add marker at user location
+        new mapboxgl.Marker().setLngLat([userLng, userLat]).addTo(mapRef.current!);
+      },
+      (error) => {
+        console.error("Geolocation error:", error);
+
+        // Fallback: default location
+        mapRef.current = new mapboxgl.Map({
+          container: mapContainerRef.current!,
+          center: [-79.3755984780575, 43.74082538389782],
+          zoom: 15,
+          minZoom: 10,
+          style: "mapbox://styles/mapbox/streets-v11",
+        });
+      },
+      { enableHighAccuracy: true }
+    );
+  }
+
+    return () => {
+      if (mapRef.current) mapRef.current.remove();
+    }
+  }, [])
+
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -85,21 +133,10 @@ export default function MapPage() {
 
       <div className="flex h-[calc(100vh-80px)]">
         {/* Map Area */}
-        <div className="flex-1 relative bg-gray-200">
+        <div className="flex-1 relative bg-gray-200" ref = {mapContainerRef}>
           {/* Placeholder for map */}
-          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-100 to-green-100">
-            <div className="text-center">
-              <MapPin className="h-16 w-16 text-blue-600 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold mb-2">Interactive Map</h3>
-              <p className="text-gray-600 mb-4">Real-time theft reports and community sightings</p>
-              <div className="flex gap-4 justify-center">
-                <Badge className="bg-red-600">🚨 Theft Reports</Badge>
-                <Badge className="bg-yellow-600">👁️ Community Sightings</Badge>
-              </div>
-            </div>
-          </div>
 
-          {/* Map pins overlay (simulated) */}
+          {/* Map pins overlay (simulated)
           <div className="absolute inset-0 pointer-events-none">
             {mockReports.map((report, index) => (
               <div
@@ -120,7 +157,7 @@ export default function MapPage() {
                 )}
               </div>
             ))}
-          </div>
+          </div> */}
         </div>
 
         {/* Sidebar */}
@@ -174,7 +211,7 @@ export default function MapPage() {
                           <MapPin className="h-3 w-3" />
                           {report.location}
                         </div>
-                        {report.sightings > 0 && (
+                        {report.sightings! > 0 && (
                           <Badge variant="outline" className="mt-2">
                             {report.sightings} sighting{report.sightings !== 1 ? "s" : ""}
                           </Badge>
