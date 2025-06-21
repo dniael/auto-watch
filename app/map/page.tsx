@@ -12,6 +12,9 @@ import mapboxgl from "mapbox-gl"
 import "mapbox-gl/dist/mapbox-gl.css"
 import Marker from "./marker"
 
+import { skibidiCollection } from "../../lib/controller"
+import { doc, getDocs, onSnapshot } from "firebase/firestore"
+
 // Mock data for demonstration
 const mockReports = [
   {
@@ -65,6 +68,13 @@ export default function MapPage() {
   const mapContainerRef = useRef<any>(null)
 
   useEffect(() => {
+
+
+    onSnapshot(skibidiCollection, (snapshot)   => {
+      console.log(snapshot.docs[0].data());
+    })
+
+    
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
