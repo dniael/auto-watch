@@ -67,45 +67,95 @@ export default function MapPage() {
   const mapContainerRef = useRef<any>(null)
 
   useEffect(() => {
+    // Ensure the container element exists before proceeding
+    if (!mapContainerRef.current) {
+      console.error("Map container not found");
+      return;
+    }
+
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
           const userLng = position.coords.longitude
           const userLat = position.coords.latitude
 
-          mapRef.current = new mapboxgl.Map({
-            container: mapContainerRef.current!,
-            center: [userLng, userLat],
-            zoom: 15,
-            minZoom: 10,
-            style: "mapbox://styles/mapbox/streets-v11",
-          })
+          // Double-check container exists before creating map
+          if (!mapContainerRef.current) {
+            console.error("Map container not available when creating map");
+            return;
+          }
 
-          mapRef.current.on("load", () => {
-            setMapReady(true) // Enable marker once map is loaded
-          })
+          try {
+            mapRef.current = new mapboxgl.Map({
+              container: mapContainerRef.current,
+              center: [userLng, userLat],
+              zoom: 15,
+              minZoom: 10,
+              style: "mapbox://styles/mapbox/streets-v11",
+            })
+
+            mapRef.current.on("load", () => {
+              setMapReady(true) // Enable marker once map is loaded
+            })
+          } catch (error) {
+            console.error("Error creating map:", error);
+          }
         },
         (error) => {
           console.error("Geolocation error:", error)
 
-          mapRef.current = new mapboxgl.Map({
-            container: mapContainerRef.current!,
-            center: [-79.3755984780575, 43.74082538389782],
-            zoom: 15,
-            minZoom: 10,
-            style: "mapbox://styles/mapbox/streets-v11",
-          })
+          // Double-check container exists before creating map
+          if (!mapContainerRef.current) {
+            console.error("Map container not available when creating map (fallback)");
+            return;
+          }
 
-          mapRef.current.on("load", () => {
-            setMapReady(true) // Enable marker once map is loaded
-          })
+          try {
+            mapRef.current = new mapboxgl.Map({
+              container: mapContainerRef.current,
+              center: [-79.3755984780575, 43.74082538389782],
+              zoom: 15,
+              minZoom: 10,
+              style: "mapbox://styles/mapbox/streets-v11",
+            })
+
+            mapRef.current.on("load", () => {
+              setMapReady(true) // Enable marker once map is loaded
+            })
+          } catch (error) {
+            console.error("Error creating map (fallback):", error);
+          }
         },
         { enableHighAccuracy: true },
       )
+    } else {
+      // Fallback for browsers without geolocation
+      if (!mapContainerRef.current) {
+        console.error("Map container not available");
+        return;
+      }
+
+      try {
+        mapRef.current = new mapboxgl.Map({
+          container: mapContainerRef.current,
+          center: [-79.3755984780575, 43.74082538389782],
+          zoom: 15,
+          minZoom: 10,
+          style: "mapbox://styles/mapbox/streets-v11",
+        })
+
+        mapRef.current.on("load", () => {
+          setMapReady(true) // Enable marker once map is loaded
+        })
+      } catch (error) {
+        console.error("Error creating map (no geolocation):", error);
+      }
     }
 
     return () => {
-      mapRef.current?.remove()
+      if (mapRef.current) {
+        mapRef.current.remove()
+      }
     }
   }, [])
 

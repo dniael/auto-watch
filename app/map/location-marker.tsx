@@ -52,8 +52,12 @@ const LocationMarker: React.FC<LocationMarkerProps> = ({ map }) => {
 
     // Cleanup function
     return () => {
-      if (geolocateControlRef.current) {
-        map.removeControl(geolocateControlRef.current);
+      if (geolocateControlRef.current && map && !map._removed) {
+        try {
+          map.removeControl(geolocateControlRef.current);
+        } catch (error) {
+          console.warn('Error removing geolocate control:', error);
+        }
       }
     };
   }, [map]);
