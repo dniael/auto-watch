@@ -7,6 +7,9 @@ import { Input } from "@/components/ui/input"
 import { ArrowLeft, MapPin, AlertTriangle, Eye, Search, Filter } from "lucide-react"
 import Link from "next/link"
 import { useState } from "react"
+import mapboxgl from "mapbox-gl";
+
+
 
 // Mock data for demonstration
 const mockReports = [
@@ -174,7 +177,7 @@ export default function MapPage() {
                           <MapPin className="h-3 w-3" />
                           {report.location}
                         </div>
-                        {report.sightings > 0 && (
+                        {report.sightings! > 0 && (
                           <Badge variant="outline" className="mt-2">
                             {report.sightings} sighting{report.sightings !== 1 ? "s" : ""}
                           </Badge>
