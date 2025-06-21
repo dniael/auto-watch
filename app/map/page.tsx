@@ -9,6 +9,8 @@ import Link from "next/link"
 import { useState } from "react"
 import { useRef, useEffect } from "react"
 import mapboxgl from "mapbox-gl"
+import 'mapbox-gl/dist/mapbox-gl.css';
+import Marker from "./marker"
 
 // Mock data for demonstration
 const mockReports = [
@@ -52,54 +54,58 @@ const mockReports = [
   },
 ]
 
+mapboxgl.accessToken = 'pk.eyJ1IjoicGxhdGludW1jb3AiLCJhIjoiY21jNXU4bmoyMHR3ZjJsbzR0OWxpNjFkYSJ9.OHvYs3NyOpLGSMj1CMI1xg';
+
 export default function MapPage() {
   const [selectedReport, setSelectedReport] = useState<any>(null)
+   const [mapReady, setMapReady] = useState(false);
   const [filter, setFilter] = useState("all")
 
   const mapRef = useRef<any>(null)
   const mapContainerRef = useRef<any>(null)
-
+  
   useEffect(() => {
-    mapboxgl.accessToken = 'pk.eyJ1IjoicGxhdGludW1jb3AiLCJhIjoiY21jNXU4bmoyMHR3ZjJsbzR0OWxpNjFkYSJ9.OHvYs3NyOpLGSMj1CMI1xg'
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const userLng = position.coords.longitude;
+          const userLat = position.coords.latitude;
 
-if (navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const userLng = position.coords.longitude;
-        const userLat = position.coords.latitude;
+          mapRef.current = new mapboxgl.Map({
+            container: mapContainerRef.current!,
+            center: [userLng, userLat],
+            zoom: 15,
+            minZoom: 10,
+            style: "mapbox://styles/mapbox/streets-v11",
+          });
 
-        // Initialize the map using the user's real-time location
-        mapRef.current = new mapboxgl.Map({
-          container: mapContainerRef.current!,
-          center: [userLng, userLat],
-          zoom: 15,
-          minZoom: 10,
-          style: "mapbox://styles/mapbox/streets-v11",
-        });
+          mapRef.current.on("load", () => {
+            setMapReady(true); // Enable marker once map is loaded
+          });
+        },
+        (error) => {
+          console.error("Geolocation error:", error);
 
-        // Optional: Add marker at user location
-        new mapboxgl.Marker().setLngLat([userLng, userLat]).addTo(mapRef.current!);
-      },
-      (error) => {
-        console.error("Geolocation error:", error);
+          mapRef.current = new mapboxgl.Map({
+            container: mapContainerRef.current!,
+            center: [-79.3755984780575, 43.74082538389782],
+            zoom: 15,
+            minZoom: 10,
+            style: "mapbox://styles/mapbox/streets-v11",
+          });
 
-        // Fallback: default location
-        mapRef.current = new mapboxgl.Map({
-          container: mapContainerRef.current!,
-          center: [-79.3755984780575, 43.74082538389782],
-          zoom: 15,
-          minZoom: 10,
-          style: "mapbox://styles/mapbox/streets-v11",
-        });
-      },
-      { enableHighAccuracy: true }
-    );
-  }
+          mapRef.current.on("load", () => {
+            setMapReady(true); // Enable marker once map is loaded
+          });
+        },
+        { enableHighAccuracy: true }
+      );
+    }
 
     return () => {
-      if (mapRef.current) mapRef.current.remove();
-    }
-  }, [])
+      mapRef.current?.remove();
+    };
+  }, []);
 
 
   return (
@@ -133,7 +139,20 @@ if (navigator.geolocation) {
 
       <div className="flex h-[calc(100vh-80px)]">
         {/* Map Area */}
-        <div className="flex-1 relative bg-gray-200" ref = {mapContainerRef}>
+        <div className="flex-1 relative bg-gray-200" ref={mapContainerRef}/>
+      {mapReady && mapRef.current && (
+        <Marker
+          key={1}
+          map={mapRef.current}
+          feature={{
+            geometry: {
+              coordinates: [-79.3755984780575, 43.74082538389782],
+            },
+          }}
+        />
+      )}
+
+
           {/* Placeholder for map */}
 
           {/* Map pins overlay (simulated)
@@ -158,7 +177,7 @@ if (navigator.geolocation) {
               </div>
             ))}
           </div> */}
-        </div>
+
 
         {/* Sidebar */}
         <div className="w-80 bg-white border-l overflow-y-auto">
