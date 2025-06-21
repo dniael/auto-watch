@@ -9,11 +9,12 @@ import Link from "next/link"
 import { useState } from "react"
 import { useRef, useEffect } from "react"
 import mapboxgl from "mapbox-gl"
+import "@mapbox/mapbox-gl-geocoder/dist/mapbox-gl-geocoder.css";
 import "mapbox-gl/dist/mapbox-gl.css"
 import Marker from "./marker"
+import LocationMarker from "./location-marker"
+import { collection, getDocs } from "firebase/firestore"
 
-import { skibidiCollection } from "../../lib/controller"
-import { doc, getDocs, onSnapshot } from "firebase/firestore"
 
 // Mock data for demonstration
 const mockReports = [
@@ -62,60 +63,101 @@ mapboxgl.accessToken = "pk.eyJ1IjoicGxhdGludW1jb3AiLCJhIjoiY21jNXU4bmoyMHR3ZjJsb
 export default function MapPage() {
   const [selectedReport, setSelectedReport] = useState<any>(null)
   const [mapReady, setMapReady] = useState(false)
+  
   const [filter, setFilter] = useState("all")
 
   const mapRef = useRef<any>(null)
   const mapContainerRef = useRef<any>(null)
 
   useEffect(() => {
-
-
-    onSnapshot(skibidiCollection, (snapshot)   => {
-      console.log(snapshot.docs[0].data());
-    })
-
-    
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
           const userLng = position.coords.longitude
           const userLat = position.coords.latitude
 
-          mapRef.current = new mapboxgl.Map({
-            container: mapContainerRef.current!,
-            center: [userLng, userLat],
-            zoom: 15,
-            minZoom: 10,
-            style: "mapbox://styles/mapbox/streets-v11",
-          })
+          // Double-check container exists before creating map
+          if (!mapContainerRef.current) {
+            console.error("Map container not available when creating map");
+            return;
+          }
 
-          mapRef.current.on("load", () => {
-            setMapReady(true) // Enable marker once map is loaded
-          })
+          try {
+            mapRef.current = new mapboxgl.Map({
+              container: mapContainerRef.current,
+              center: [userLng, userLat],
+              zoom: 15,
+              minZoom: 10,
+              style: "mapbox://styles/mapbox/streets-v11",
+            })
+
+            mapRef.current.on("load", () => {
+              setMapReady(true) // Enable marker once map is loaded
+            })
+          } catch (error) {
+            console.error("Error creating map:", error);
+          }
         },
         (error) => {
           console.error("Geolocation error:", error)
 
-          mapRef.current = new mapboxgl.Map({
-            container: mapContainerRef.current!,
-            center: [-79.3755984780575, 43.74082538389782],
-            zoom: 15,
-            minZoom: 10,
-            style: "mapbox://styles/mapbox/streets-v11",
-          })
+          // Double-check container exists before creating map
+          if (!mapContainerRef.current) {
+            console.error("Map container not available when creating map (fallback)");
+            return;
+          }
 
-          mapRef.current.on("load", () => {
-            setMapReady(true) // Enable marker once map is loaded
-          })
+          try {
+            mapRef.current = new mapboxgl.Map({
+              container: mapContainerRef.current,
+              center: [-79.3755984780575, 43.74082538389782],
+              zoom: 15,
+              minZoom: 10,
+              style: "mapbox://styles/mapbox/streets-v11",
+            })
+
+            mapRef.current.on("load", () => {
+              setMapReady(true) // Enable marker once map is loaded
+            })
+          } catch (error) {
+            console.error("Error creating map (fallback):", error);
+          }
         },
         { enableHighAccuracy: true },
       )
+    } else {
+      // Fallback for browsers without geolocation
+      if (!mapContainerRef.current) {
+        console.error("Map container not available");
+        return;
+      }
+
+      try {
+        mapRef.current = new mapboxgl.Map({
+          container: mapContainerRef.current,
+          center: [-79.3755984780575, 43.74082538389782],
+          zoom: 15,
+          minZoom: 10,
+          style: "mapbox://styles/mapbox/streets-v11",
+        })
+
+        mapRef.current.on("load", () => {
+          setMapReady(true) // Enable marker once map is loaded
+        })
+      } catch (error) {
+        console.error("Error creating map (no geolocation):", error);
+      }
     }
 
     return () => {
-      mapRef.current?.remove()
+      if (mapRef.current) {
+        mapRef.current.remove()
+      }
     }
   }, [])
+
+  // useEffect(() => {
+    // Update map center when selected report changes
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -150,15 +192,18 @@ export default function MapPage() {
         {/* Map Area */}
         <div className="flex-1 relative bg-gray-200" ref={mapContainerRef} />
         {mapReady && mapRef.current && (
-          <Marker
-            key={1}
-            map={mapRef.current}
-            feature={{
-              geometry: {
-                coordinates: [-79.3755984780575, 43.74082538389782],
-              },
-            }}
-          />
+          <>
+            <LocationMarker map={mapRef.current} />
+            <Marker
+              key={1}
+              map={mapRef.current}
+              feature={{
+                geometry: {
+                  coordinates: [-79.3755984780575, 43.74082538389782],
+                },
+              }}
+            />
+          </>
         )}
 
         {/* Sidebar */}
