@@ -11,6 +11,7 @@ import { useRef, useEffect } from "react"
 import mapboxgl from "mapbox-gl"
 import "mapbox-gl/dist/mapbox-gl.css"
 import Marker from "./marker"
+import LocationMarker from "./location-marker"
 
 // Mock data for demonstration
 const mockReports = [
@@ -59,6 +60,7 @@ mapboxgl.accessToken = "pk.eyJ1IjoicGxhdGludW1jb3AiLCJhIjoiY21jNXU4bmoyMHR3ZjJsb
 export default function MapPage() {
   const [selectedReport, setSelectedReport] = useState<any>(null)
   const [mapReady, setMapReady] = useState(false)
+  
   const [filter, setFilter] = useState("all")
 
   const mapRef = useRef<any>(null)
@@ -140,15 +142,18 @@ export default function MapPage() {
         {/* Map Area */}
         <div className="flex-1 relative bg-gray-200" ref={mapContainerRef} />
         {mapReady && mapRef.current && (
-          <Marker
-            key={1}
-            map={mapRef.current}
-            feature={{
-              geometry: {
-                coordinates: [-79.3755984780575, 43.74082538389782],
-              },
-            }}
-          />
+          <>
+            <LocationMarker map={mapRef.current} />
+            <Marker
+              key={1}
+              map={mapRef.current}
+              feature={{
+                geometry: {
+                  coordinates: [-79.3755984780575, 43.74082538389782],
+                },
+              }}
+            />
+          </>
         )}
 
         {/* Sidebar */}
