@@ -9,6 +9,7 @@ import Link from "next/link"
 import { useState } from "react"
 import { useRef, useEffect } from "react"
 import mapboxgl from "mapbox-gl"
+import "@mapbox/mapbox-gl-geocoder/dist/mapbox-gl-geocoder.css";
 import "mapbox-gl/dist/mapbox-gl.css"
 import Marker from "./marker"
 
