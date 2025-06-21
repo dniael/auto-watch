@@ -7,9 +7,10 @@ import { Input } from "@/components/ui/input"
 import { ArrowLeft, MapPin, AlertTriangle, Eye, Search, Filter } from "lucide-react"
 import Link from "next/link"
 import { useState } from "react"
-import mapboxgl from "mapbox-gl";
-
-
+import { useRef, useEffect } from "react"
+import mapboxgl from "mapbox-gl"
+import 'mapbox-gl/dist/mapbox-gl.css';
+import Marker from "./marker"
 
 // Mock data for demonstration
 const mockReports = [
@@ -53,9 +54,59 @@ const mockReports = [
   },
 ]
 
+mapboxgl.accessToken = 'pk.eyJ1IjoicGxhdGludW1jb3AiLCJhIjoiY21jNXU4bmoyMHR3ZjJsbzR0OWxpNjFkYSJ9.OHvYs3NyOpLGSMj1CMI1xg';
+
 export default function MapPage() {
   const [selectedReport, setSelectedReport] = useState<any>(null)
+   const [mapReady, setMapReady] = useState(false);
   const [filter, setFilter] = useState("all")
+
+  const mapRef = useRef<any>(null)
+  const mapContainerRef = useRef<any>(null)
+  
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const userLng = position.coords.longitude;
+          const userLat = position.coords.latitude;
+
+          mapRef.current = new mapboxgl.Map({
+            container: mapContainerRef.current!,
+            center: [userLng, userLat],
+            zoom: 15,
+            minZoom: 10,
+            style: "mapbox://styles/mapbox/streets-v11",
+          });
+
+          mapRef.current.on("load", () => {
+            setMapReady(true); // Enable marker once map is loaded
+          });
+        },
+        (error) => {
+          console.error("Geolocation error:", error);
+
+          mapRef.current = new mapboxgl.Map({
+            container: mapContainerRef.current!,
+            center: [-79.3755984780575, 43.74082538389782],
+            zoom: 15,
+            minZoom: 10,
+            style: "mapbox://styles/mapbox/streets-v11",
+          });
+
+          mapRef.current.on("load", () => {
+            setMapReady(true); // Enable marker once map is loaded
+          });
+        },
+        { enableHighAccuracy: true }
+      );
+    }
+
+    return () => {
+      mapRef.current?.remove();
+    };
+  }, []);
+
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -88,21 +139,23 @@ export default function MapPage() {
 
       <div className="flex h-[calc(100vh-80px)]">
         {/* Map Area */}
-        <div className="flex-1 relative bg-gray-200">
-          {/* Placeholder for map */}
-          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-100 to-green-100">
-            <div className="text-center">
-              <MapPin className="h-16 w-16 text-blue-600 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold mb-2">Interactive Map</h3>
-              <p className="text-gray-600 mb-4">Real-time theft reports and community sightings</p>
-              <div className="flex gap-4 justify-center">
-                <Badge className="bg-red-600">🚨 Theft Reports</Badge>
-                <Badge className="bg-yellow-600">👁️ Community Sightings</Badge>
-              </div>
-            </div>
-          </div>
+        <div className="flex-1 relative bg-gray-200" ref={mapContainerRef}/>
+      {mapReady && mapRef.current && (
+        <Marker
+          key={1}
+          map={mapRef.current}
+          feature={{
+            geometry: {
+              coordinates: [-79.3755984780575, 43.74082538389782],
+            },
+          }}
+        />
+      )}
 
-          {/* Map pins overlay (simulated) */}
+
+          {/* Placeholder for map */}
+
+          {/* Map pins overlay (simulated)
           <div className="absolute inset-0 pointer-events-none">
             {mockReports.map((report, index) => (
               <div
@@ -123,8 +176,8 @@ export default function MapPage() {
                 )}
               </div>
             ))}
-          </div>
-        </div>
+          </div> */}
+
 
         {/* Sidebar */}
         <div className="w-80 bg-white border-l overflow-y-auto">
