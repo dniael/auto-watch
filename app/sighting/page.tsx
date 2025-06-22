@@ -268,6 +268,8 @@ export default function SightingPage() {
     }
   }
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -439,12 +441,13 @@ export default function SightingPage() {
                     onChange={handleFileUpload}
                     className="hidden"
                     id="file-upload"
+                    ref={fileInputRef}
                   />
                   <Button 
                     type="button" 
                     variant="outline" 
                     className="mt-4"
-                    onClick={() => document.getElementById('file-upload')?.click()}
+                    onClick={() => fileInputRef.current?.click()}
                   >
                     Choose Files
                   </Button>
