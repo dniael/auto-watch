@@ -11,8 +11,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { ArrowLeft, MapPin, Camera, Video, AlertTriangle } from "lucide-react"
 import Link from "next/link"
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import { addTheftMarker } from "@/lib/controller"
+import { useRouter } from "next/navigation"
+
+import { AddressAutofill } from '@mapbox/search-js-react';
+
+const AddressAutofillAny = AddressAutofill as any;
 
 // Firebase Database Type Definition
 type TheftReport = {
@@ -42,8 +47,10 @@ type TheftReport = {
 }
 
 export default function ReportPage() {
+  const router = useRouter()
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [addressError, setAddressError] = useState("")
 
   // Form field states
   const [licensePlate, setLicensePlate] = useState("")
@@ -61,6 +68,73 @@ export default function ReportPage() {
   const [contactPhone, setContactPhone] = useState("")
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([])
 
+  // Ref for debouncing
+  const geocodeTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Forward geocoding function
+  const geocodeAddress = async (searchText: string) => {
+    if (!searchText.trim()) {
+      setAddressError("")
+      return
+    }
+
+    const accessToken = 'pk.eyJ1IjoicGxhdGludW1jb3AiLCJhIjoiY21jNXU4bmoyMHR3ZjJsbzR0OWxpNjFkYSJ9.OHvYs3NyOpLGSMj1CMI1xg'
+    const encodedSearchText = encodeURIComponent(searchText)
+    const url = `https://api.mapbox.com/search/geocode/v6/forward?q=${encodedSearchText}&access_token=${accessToken}`
+
+    try {
+      const response = await fetch(url)
+      const data = await response.json()
+
+      if (data.features && data.features.length > 0) {
+        const coordinates = data.features[0].geometry.coordinates
+        const [longitude, latitude] = coordinates
+        
+        console.log('Geocoded coordinates:', { latitude, longitude })
+        
+        // Update the location state with the geocoded coordinates
+        setLocation({ lat: latitude, lng: longitude })
+        setAddressError("") // Clear any previous error
+      } else {
+        console.log('No coordinates found for address:', searchText)
+        setLocation(null)
+        setAddressError("Invalid address. Please enter a valid address or use current location.")
+      }
+    } catch (error) {
+      console.error('Error geocoding address:', error)
+      setLocation(null)
+      setAddressError("Error validating address. Please try again or use current location.")
+    }
+  }
+
+  // Handle address input change with debounced geocoding
+  const handleAddressChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newAddress = e.target.value
+    setAddress(newAddress)
+    setAddressError("") // Clear error when user starts typing
+    
+    // Clear existing timeout
+    if (geocodeTimeoutRef.current) {
+      clearTimeout(geocodeTimeoutRef.current)
+    }
+    
+    // Set new timeout for geocoding
+    geocodeTimeoutRef.current = setTimeout(() => {
+      if (newAddress.trim()) {
+        geocodeAddress(newAddress)
+      }
+    }, 1000) // Wait 1 second after user stops typing
+  }
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (geocodeTimeoutRef.current) {
+        clearTimeout(geocodeTimeoutRef.current)
+      }
+    }
+  }, [])
+
   const getCurrentLocation = () => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -69,9 +143,11 @@ export default function ReportPage() {
             lat: position.coords.latitude,
             lng: position.coords.longitude,
           })
+          setAddressError("") // Clear error when using current location
         },
         (error) => {
           console.error("Error getting location:", error)
+          setAddressError("Could not get current location. Please enter a valid address.")
         },
       )
     }
@@ -91,6 +167,13 @@ export default function ReportPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    // Validate that we have coordinates (either from geocoding or current location)
+    if (!location) {
+      setAddressError("Please enter a valid address or use current location.")
+      return
+    }
+    
     setIsSubmitting(true)
 
     
@@ -135,8 +218,9 @@ export default function ReportPage() {
         addTheftMarker(theftData)
         console.log('Saved theft report with photo.')
         
-        // Redirect to success page or show success message
+        // Redirect to map page
         alert("Report submitted successfully! The community has been alerted.")
+        router.push('/map')
         setIsSubmitting(false)
       }
       
@@ -173,8 +257,9 @@ export default function ReportPage() {
       addTheftMarker(theftData)
       console.log('Saved theft report without photo.')
       
-      // Redirect to success page or show success message
+      // Redirect to map page
       alert("Report submitted successfully! The community has been alerted.")
+      router.push('/map')
       setIsSubmitting(false)
     }
   }
@@ -310,19 +395,30 @@ export default function ReportPage() {
               {/* Location */}
               <div className="space-y-4">
                 <Label>Last Known Location *</Label>
-                <div className="flex gap-2">
-                  <Input 
-                    placeholder="Address or intersection" 
-                    className="flex-1" 
-                    required
-                    value={address}
-                    onChange={(e) => setAddress(e.target.value)}
-                  />
+                <div className="flex gap-2 w-full">
+                  <AddressAutofillAny
+                    accessToken='pk.eyJ1IjoicGxhdGludW1jb3AiLCJhIjoiY21jNXU4bmoyMHR3ZjJsbzR0OWxpNjFkYSJ9.OHvYs3NyOpLGSMj1CMI1xg'
+                  >
+                    <Input 
+                      placeholder="Address or intersection" 
+                      className="flex-1" 
+                      required
+                      value={address}
+                      onChange={handleAddressChange}
+                      autoComplete="address-line1"
+                    />
+                  </AddressAutofillAny>
                   <Button type="button" variant="outline" onClick={getCurrentLocation}>
                     <MapPin className="h-4 w-4 mr-2" />
                     Use Current
                   </Button>
                 </div>
+                {addressError && (
+                  <p className="text-sm text-red-600 flex items-center gap-1">
+                    <AlertTriangle className="h-4 w-4" />
+                    {addressError}
+                  </p>
+                )}
                 {location && (
                   <Badge variant="secondary" className="w-fit">
                     <MapPin className="h-3 w-3 mr-1" />
