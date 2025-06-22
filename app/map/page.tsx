@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { ArrowLeft, MapPin, AlertTriangle, Eye, Search, Filter } from "lucide-react"
+import { ArrowLeft, MapPin, AlertTriangle, Eye, Search, Filter, ChevronDown } from "lucide-react"
 import Link from "next/link"
 import { useState } from "react"
 import { useRef, useEffect } from "react"
@@ -16,51 +16,54 @@ import SightMarker from "./sighting-marker"
 import LocationMarker from "./location-marker"
 import { collection, getDocs } from "firebase/firestore"
 import { theftCollection , sightingCollection } from "@/lib/controller"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
-
-// Mock data for demonstration
-const mockReports = [
-  {
-    id: 1,
-    type: "theft",
-    licensePlate: "ABC-123",
-    make: "Toyota",
-    model: "Camry",
-    color: "White",
-    year: 2020,
-    location: "North York Centre",
-    timeAgo: "2 hours ago",
-    sightings: 3,
-    lat: 43.7690,
-    lng: -79.4120,
-  },
-  {
-    id: 2,
-    type: "theft",
-    licensePlate: "XYZ-789",
-    make: "Honda",
-    model: "Civic",
-    color: "Black",
-    year: 2019,
-    location: "Fairview Mall",
-    timeAgo: "5 hours ago",
-    sightings: 1,
-    lat: 43.7765,
-    lng: -79.3468,
-  },
-  {
-    id: 3,
-    type: "sighting",
-    licensePlate: "ABC-123",
-    location: "York Mills & Bayview",
-    timeAgo: "30 minutes ago",
-    reportedBy: "Community Member",
-    lat: 43.7466,
-    lng: -79.3832,
-  },
-];
 
 mapboxgl.accessToken = "pk.eyJ1IjoicGxhdGludW1jb3AiLCJhIjoiY21jNXU4bmoyMHR3ZjJsbzR0OWxpNjFkYSJ9.OHvYs3NyOpLGSMj1CMI1xg"
+
+// Utility function to format time difference
+const formatTimeAgo = (timestamp: any): string => {
+  let timestampMs: number;
+  
+  // Handle Firestore Timestamp object
+  if (timestamp && typeof timestamp === 'object' && timestamp.seconds !== undefined) {
+    // Convert Firestore Timestamp to milliseconds
+    timestampMs = timestamp.seconds * 1000;
+  } else if (typeof timestamp === 'number') {
+    // Handle regular number (milliseconds)
+    timestampMs = timestamp;
+  } else {
+    console.warn('Unknown timestamp format:', timestamp);
+    return 'Unknown time';
+  }
+  
+  const now = Date.now();
+  const diffInMs = now - timestampMs;
+  
+  // Debug logging
+  console.log('Timestamp object:', timestamp, 'Converted to ms:', timestampMs, 'Now:', now, 'Difference (ms):', diffInMs);
+  console.log('Timestamp date:', new Date(timestampMs), 'Current date:', new Date(now));
+  
+  const diffInSeconds = Math.floor(diffInMs / 1000);
+  const diffInMinutes = Math.floor(diffInSeconds / 60);
+  const diffInHours = Math.floor(diffInMinutes / 60);
+  const diffInDays = Math.floor(diffInHours / 24);
+
+  if (diffInDays > 0) {
+    return `${diffInDays} day${diffInDays !== 1 ? 's' : ''} ago`;
+  } else if (diffInHours > 0) {
+    return `${diffInHours} hour${diffInHours !== 1 ? 's' : ''} ago`;
+  } else if (diffInMinutes > 0) {
+    return `${diffInMinutes} minute${diffInMinutes !== 1 ? 's' : ''} ago`;
+  } else {
+    return `${diffInSeconds} second${diffInSeconds !== 1 ? 's' : ''} ago`;
+  }
+};
 
 export default function MapPage() {
   const [selectedReport, setSelectedReport] = useState<any>(null)
@@ -72,6 +75,7 @@ export default function MapPage() {
   const [sightings, setSightings] = useState<any[]>([])
   
   const [filter, setFilter] = useState("all")
+  const [searchQuery, setSearchQuery] = useState("")
 
   const mapRef = useRef<any>(null)
   const mapContainerRef = useRef<any>(null)
@@ -95,6 +99,100 @@ export default function MapPage() {
     }
   };
 
+  // Fuzzy search function
+  const fuzzySearch = (query: string, text: string): boolean => {
+    if (!query) return true;
+    const normalizedQuery = query.toLowerCase().replace(/\s/g, '');
+    const normalizedText = text.toLowerCase().replace(/\s/g, '');
+    
+    // Simple fuzzy search - check if query characters appear in order in text
+    let queryIndex = 0;
+    for (let i = 0; i < normalizedText.length && queryIndex < normalizedQuery.length; i++) {
+      if (normalizedText[i] === normalizedQuery[queryIndex]) {
+        queryIndex++;
+      }
+    }
+    return queryIndex === normalizedQuery.length;
+  };
+
+  // Filter data based on selected filter and search query
+  const getFilteredThefts = () => {
+    let filtered = theftsData;
+    
+    // Apply type filter
+    if (filter === "sightings") {
+      return [];
+    }
+    
+    // Apply search filter
+    if (searchQuery) {
+      filtered = filtered.filter((theft: any) => 
+        fuzzySearch(searchQuery, theft.info?.licensePlate || '')
+      );
+    }
+    
+    return filtered;
+  };
+
+  const getFilteredSightings = () => {
+    let filtered = sightings;
+    
+    // Apply type filter
+    if (filter === "thefts") {
+      return [];
+    }
+    
+    // Apply search filter
+    if (searchQuery) {
+      filtered = filtered.filter((sighting: any) => 
+        fuzzySearch(searchQuery, sighting.info?.licemsePlate || '') // Note: typo in original data
+      );
+    }
+    
+    return filtered;
+  };
+
+  const getFilteredTheftLocations = () => {
+    if (filter === "sightings") {
+      return [];
+    }
+    
+    if (searchQuery) {
+      const filteredThefts = theftsData.filter((theft: any) => 
+        fuzzySearch(searchQuery, theft.info?.licensePlate || '')
+      );
+      return filteredThefts.map((theft: any) => theft.location);
+    }
+    
+    return theftsLocations;
+  };
+
+  const getFilteredSightLocations = () => {
+    if (filter === "thefts") {
+      return [];
+    }
+    
+    if (searchQuery) {
+      const filteredSightings = sightings.filter((sighting: any) => 
+        fuzzySearch(searchQuery, sighting.info?.licemsePlate || '') // Note: typo in original data
+      );
+      return filteredSightings.map((sighting: any) => sighting.location);
+    }
+    
+    return sightsLocations;
+  };
+
+  // Get filter display text
+  const getFilterText = () => {
+    switch (filter) {
+      case "thefts":
+        return "Thefts Only";
+      case "sightings":
+        return "Sightings Only";
+      default:
+        return "All Reports";
+    }
+  };
 
   useEffect(() => {
     if (navigator.geolocation) {
@@ -229,10 +327,35 @@ export default function MapPage() {
             </div>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm">
-              <Filter className="h-4 w-4 mr-2" />
-              Filter
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <Filter className="h-4 w-4 mr-2" />
+                  {getFilterText()}
+                  <ChevronDown className="h-4 w-4 ml-2" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setFilter("all")}>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                    All Reports
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setFilter("thefts")}>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                    Thefts Only
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setFilter("sightings")}>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+                    Sightings Only
+                  </div>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button size="sm" asChild className="bg-red-600 hover:bg-red-700">
               <Link href="/report">Report Theft</Link>
             </Button>
@@ -244,8 +367,8 @@ export default function MapPage() {
         {/* Map Area */}
         <div className="flex-1 relative bg-gray-200" ref={mapContainerRef} />
         {mapReady && mapRef.current && (<LocationMarker map={mapRef.current} />)}
-        {(mapReady && mapRef.current && theftsLocations) &&  (
-          theftsLocations.map((loc, index)  => (
+        {(mapReady && mapRef.current && getFilteredTheftLocations()) &&  (
+          getFilteredTheftLocations().map((loc, index)  => (
           <StolenMarker
             key={index}
             map={mapRef.current}
@@ -265,10 +388,9 @@ export default function MapPage() {
         ))
         )}
 
-        {(mapReady && mapRef.current && sightsLocations) && (
+        {(mapReady && mapRef.current && getFilteredSightLocations()) && (
 (
-          sightsLocations.map((loc, index) => (
-            console.log("Sighting location:", loc),
+          getFilteredSightLocations().map((loc, index) => (
             <SightMarker
               key = {index}
               map = {mapRef.current}
@@ -289,15 +411,26 @@ export default function MapPage() {
           <div className="p-4">
             <div className="flex items-center gap-2 mb-4">
               <Search className="h-4 w-4 text-gray-400" />
-              <Input placeholder="Search by license plate..." />
+              <Input 
+                placeholder="Search by license plate..." 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
             </div>
 
             <div className="space-y-4">
-              <h3 className="font-semibold text-gray-900">Recent Reports</h3>
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-gray-900">Recent Reports</h3>
+                {searchQuery && (
+                  <span className="text-xs text-gray-500">
+                    {getFilteredThefts().length + getFilteredSightings().length} results
+                  </span>
+                )}
+              </div>
 
               {/* shit i added */}
 
-              {theftsData.map((data, index) => (
+              {getFilteredThefts().map((data, index) => (
                 <Card
                   key = {index}
                   className={`cursor-pointer transition-all duration-200 relative group hover:shadow-md ${
@@ -316,7 +449,7 @@ export default function MapPage() {
                           Theft
                         </>
                       </Badge>
-                      <span className="text-xs text-gray-500">{Date.now() - data.info.date} {"hours ago"} </span> 
+                      <span className="text-xs text-gray-500">{formatTimeAgo(data.info.date)}</span> 
                     </div>
                   </CardHeader>
                   <CardContent className = "pt-0">
@@ -357,7 +490,7 @@ export default function MapPage() {
                 </Card>
               ))}
 
-              {sightings.map((data, index) => (
+              {getFilteredSightings().map((data, index) => (
                 <Card
                   key = {index}
                   className={`cursor-pointer transition-all duration-200 relative group hover:shadow-md ${
@@ -376,7 +509,7 @@ export default function MapPage() {
                             Sighting
                         </>
                       </Badge>
-                      <span className="text-xs text-gray-500">{Date.now() - data.info.date} {"hours ago"} </span> 
+                      <span className="text-xs text-gray-500">{formatTimeAgo(data.info.date)}</span> 
                     </div>
                   </CardHeader>
                   <CardContent className = "pt-0">

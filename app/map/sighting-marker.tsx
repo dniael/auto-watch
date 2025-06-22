@@ -40,9 +40,9 @@ const SightMarker: React.FC<MarkerProps> = ({ map, feature }) => {
             {createPortal(
                 <div
                     style={{
-                        width: '3vw',
-                        height: '3vw',
-                        backgroundImage: 'url(../eye-icon.png)',
+                        width: '2vw',
+                        height: '2vw',
+                        backgroundImage: 'url(../sightingsymbol.svg)',
                         backgroundSize: 'cover',
                         position: 'static'
                     }}
