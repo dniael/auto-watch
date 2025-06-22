@@ -31,6 +31,8 @@ const StolenMarker: React.FC<MarkerProps> = ({ map, feature, onClick }) => {
       .setLngLat([geometry.coordinates[0], geometry.coordinates[1]])
       .addTo(map);
 
+    markerRef.current.getElement().addEventListener('click', onClick as any);
+
     return () => {
       markerRef.current?.remove();
     };
