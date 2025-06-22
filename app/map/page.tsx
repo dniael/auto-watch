@@ -79,11 +79,13 @@ export default function MapPage() {
   const [sortBy, setSortBy] = useState<"time" | "alphabetical" | "distance">("time")
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc")
   const [currentLocation, setCurrentLocation] = useState<[number, number] | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
 
   const mapRef = useRef<any>(null)
   const mapContainerRef = useRef<any>(null)
 
   const fetchAllData = async () => {
+    setIsLoading(true);
     try {
       const querySnapshot = await getDocs(theftCollection);
       const querySnapshot2 = await getDocs(sightingCollection);
@@ -96,9 +98,11 @@ export default function MapPage() {
       console.log("Fetched thefts locations:", thefts.map((theft: any) => theft.location));
       console.log("Fetched sights locations:", sights.map((sighting: any) => sighting.location));
       console.log("Fetched thefts data:", thefts);
-      console.log("Fetched thefts data:", sights);
+      console.log("Fetched sights data:", sights);
     } catch (error) {
       console.error("Error fetching fire data:", error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -568,7 +572,7 @@ export default function MapPage() {
         )
         )}
         {/* Sidebar */}
-        <div className="w-80 bg-white border-l overflow-y-auto">
+        <div className="w-96 bg-white border-l overflow-y-auto">
           <div className="p-4">
             <div className="flex items-center gap-2 mb-4">
               <Search className="h-4 w-4 text-gray-400" />
@@ -589,195 +593,132 @@ export default function MapPage() {
                 )}
               </div>
 
-              {/* shit i added */}
-
-              {getFilteredThefts().map((data, index) => (
-                <Card
-                  key = {index}
-                  className={`cursor-pointer transition-all duration-200 relative group hover:shadow-md ${
-                    selectedReport?.id === data.id ? "ring-2 ring-blue-500" : ""
-                  }`}
-                  onClick={() => setSelectedReport(data)}
-                >
-                  <CardHeader className = "pb-2">
-                    <div className = "flex items-center justify-between">
-                      <Badge 
-                        variant = "destructive"
-                        className = "bg-red-600"
-                      >
-                        <>
-                          <AlertTriangle className="h-3 w-3 mr-1" />
-                          Theft
-                        </>
-                      </Badge>
-                      <span className="text-xs text-gray-500">{formatTimeAgo(data.info.date)}</span> 
+              {isLoading ? (
+                // Loading skeleton
+                <div className="space-y-4">
+                  {[...Array(5)].map((_, index) => (
+                    <div key={index} className="bg-gray-50 rounded-lg p-4 animate-pulse">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="h-4 bg-gray-200 rounded w-16"></div>
+                        <div className="h-3 bg-gray-200 rounded w-20"></div>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="h-4 bg-gray-200 rounded w-32"></div>
+                        <div className="h-3 bg-gray-200 rounded w-48"></div>
+                        <div className="h-3 bg-gray-200 rounded w-40"></div>
+                      </div>
                     </div>
-                  </CardHeader>
-                  <CardContent className = "pt-0">
-                    <>
-                        <div className="font-semibold">{data.info.licensePlate}</div>
-                        <div className="text-sm text-gray-600">
-                          {data.info.year} {data.info.color} {data.info.brand} {data.info.model}
-                        </div>
-                        <div className="text-sm text-gray-500 flex items-center gap-1 mt-1">
-                          <MapPin className="h-3 w-3" />
-                          {data.location.address}
-                        </div>
-                      </>
-                  </CardContent>
-
-                  <div className="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 rounded-lg flex items-center justify-center">
-                      <Button
-                        size="sm"
-                        className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg transform scale-95 group-hover:scale-100 transition-transform duration-200"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          // Navigate to sighting page with vehicle data
-                          const vehicleData = encodeURIComponent(
-                            JSON.stringify({
-                              licensePlate: data.info.licensePlate,
-                              make: data.info.brand,
-                              model: data.info.model,
-                              color: data.info.color,
-                              year: data.info.year,
-                            }),
-                          )
-                          window.location.href = `/sighting?vehicle=${vehicleData}`
-                        }}
-                      >
-                        <Eye className="h-4 w-4 mr-1" />I Saw This Car
-                      </Button>
-                    </div>
-                </Card>
-              ))}
-
-              {getFilteredSightings().map((data, index) => (
-                <Card
-                  key = {index}
-                  className={`cursor-pointer transition-all duration-200 relative group hover:shadow-md ${
-                    selectedReport?.id === data.id ? "ring-2 ring-blue-500" : ""
-                  }`}
-                  onClick={() => setSelectedReport(data)}
-                >
-                  <CardHeader className = "pb-2">
-                    <div className = "flex items-center justify-between">
-                      <Badge
-                        variant = "secondary"
-                        className = "bg-yellow-600"
-                      >
-                        <>
-                            <Eye className="h-3 w-3 mr-1" />
-                            Sighting
-                        </>
-                      </Badge>
-                      <span className="text-xs text-gray-500">{formatTimeAgo(data.info.date)}</span> 
-                    </div>
-                  </CardHeader>
-                  <CardContent className = "pt-0">
-                    <>
-                        <div className="font-semibold">Sighting: {data.info.licemsePlate}</div>
-                        <div className="text-sm text-gray-600">Reported by {data.contact.name}</div>
-                        <div className="text-sm text-gray-500 flex items-center gap-1 mt-1">
-                          <MapPin className="h-3 w-3" />
-                          {data.location.address}
-                        </div>
-                      </>
-                  </CardContent>
-                </Card>
-              ))}
-
-              {/* stuff i added ends*/}
-
-
-              
-              {/* {mockReports.map((report) => (
-                <Card 
-                  key={report.id}
-                  className={`cursor-pointer transition-all duration-200 relative group ${
-                    selectedReport?.id === report.id ? "ring-2 ring-blue-500" : ""
-                  } ${report.type === "theft" ? "hover:shadow-md" : ""}`}
-                  onClick={() => setSelectedReport(report)}
-                >
-                  <CardHeader className="pb-2">
-                    <div className="flex items-center justify-between">
-                      <Badge
-                        variant={report.type === "theft" ? "destructive" : "secondary"}
-                        className={report.type === "theft" ? "bg-red-600" : "bg-yellow-600"}
-                      >
-                        {report.type === "theft" ? (
-                          <>
-                            <AlertTriangle className="h-3 w-3 mr-1" />
-                            Theft
-                          </>
-                        ) : (
-                          <>
-                            <Eye className="h-3 w-3 mr-1" />
-                            Sighting
-                          </>
-                        )}
-                      </Badge>
-                      <span className="text-xs text-gray-500">{report.timeAgo}</span>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    {report.type === "theft" ? (
-                      <>
-                        <div className="font-semibold">{report.licensePlate}</div>
-                        <div className="text-sm text-gray-600">
-                          {report.year} {report.color} {report.make} {report.model}
-                        </div>
-                        <div className="text-sm text-gray-500 flex items-center gap-1 mt-1">
-                          <MapPin className="h-3 w-3" />
-                          {report.location}
-                        </div>
-                        {report.sightings! > 0 && (
-                          <Badge variant="outline" className="mt-2">
-                            {report.sightings} sighting{report.sightings !== 1 ? "s" : ""}
+                  ))}
+                </div>
+              ) : (
+                <>
+                  {/* Theft Reports */}
+                  {getFilteredThefts().map((data, index) => (
+                    <Card
+                      key={index}
+                      className={`cursor-pointer transition-all duration-200 relative group hover:shadow-md ${
+                        selectedReport?.id === data.id ? "ring-2 ring-blue-500" : ""
+                      }`}
+                      onClick={() => setSelectedReport(data)}
+                    >
+                      <CardHeader className="pb-2">
+                        <div className="flex items-center justify-between">
+                          <Badge 
+                            variant="destructive"
+                            className="bg-red-600"
+                          >
+                            <>
+                              <AlertTriangle className="h-3 w-3 mr-1" />
+                              Theft
+                            </>
                           </Badge>
-                        )}
-                      </>
-                    ) : (
-                      <>
-                        
-                        <div className="font-semibold">Sighting: {report.licensePlate}</div>
-                        <div className="text-sm text-gray-600">Reported by {report.reportedBy}</div>
-                        <div className="text-sm text-gray-500 flex items-center gap-1 mt-1">
-                          <MapPin className="h-3 w-3" />
-                          {report.location}
+                          <span className="text-xs text-gray-500">{formatTimeAgo(data.info.date)}</span> 
                         </div>
-                      </>
-                    )}
-                  </CardContent>
+                      </CardHeader>
+                      <CardContent className="pt-0">
+                        <>
+                          <div className="font-semibold">{data.info.licensePlate}</div>
+                          <div className="text-sm text-gray-600">
+                            {data.info.year} {data.info.color} {data.info.brand} {data.info.model}
+                          </div>
+                          <div className="text-sm text-gray-500 flex items-center gap-1 mt-1">
+                            <MapPin className="h-3 w-3" />
+                            {data.location.address}
+                          </div>
+                        </>
+                      </CardContent>
 
-                  //Hover Button for Theft Reports
+                      <div className="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 rounded-lg flex items-center justify-center">
+                        <Button
+                          size="sm"
+                          className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg transform scale-95 group-hover:scale-100 transition-transform duration-200"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            // Navigate to sighting page with vehicle data
+                            const vehicleData = encodeURIComponent(
+                              JSON.stringify({
+                                licensePlate: data.info.licensePlate,
+                                make: data.info.brand,
+                                model: data.info.model,
+                                color: data.info.color,
+                                year: data.info.year,
+                              }),
+                            )
+                            window.location.href = `/sighting?vehicle=${vehicleData}`
+                          }}
+                        >
+                          <Eye className="h-4 w-4 mr-1" />I Saw This Car
+                        </Button>
+                      </div>
+                    </Card>
+                  ))}
 
-                  {report.type === "theft" && (
-                    <div className="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 rounded-lg flex items-center justify-center">
-                      <Button
-                        size="sm"
-                        className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg transform scale-95 group-hover:scale-100 transition-transform duration-200"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          // Navigate to sighting page with vehicle data
-                          const vehicleData = encodeURIComponent(
-                            JSON.stringify({
-                              licensePlate: report.licensePlate,
-                              make: report.make,
-                              model: report.model,
-                              color: report.color,
-                              year: report.year,
-                            }),
-                          )
-                          window.location.href = `/sighting?vehicle=${vehicleData}`
-                        }}
-                      >
-                        <Eye className="h-4 w-4 mr-1" />I Saw This Car
-                      </Button>
+                  {/* Sighting Reports */}
+                  {getFilteredSightings().map((data, index) => (
+                    <Card
+                      key={index}
+                      className={`cursor-pointer transition-all duration-200 relative group hover:shadow-md ${
+                        selectedReport?.id === data.id ? "ring-2 ring-blue-500" : ""
+                      }`}
+                      onClick={() => setSelectedReport(data)}
+                    >
+                      <CardHeader className="pb-2">
+                        <div className="flex items-center justify-between">
+                          <Badge
+                            variant="secondary"
+                            className="bg-yellow-600"
+                          >
+                            <>
+                              <Eye className="h-3 w-3 mr-1" />
+                              Sighting
+                            </>
+                          </Badge>
+                          <span className="text-xs text-gray-500">{formatTimeAgo(data.info.date)}</span> 
+                        </div>
+                      </CardHeader>
+                      <CardContent className="pt-0">
+                        <>
+                          <div className="font-semibold">Sighting: {data.info.licemsePlate}</div>
+                          <div className="text-sm text-gray-600">Reported by {data.contact.name}</div>
+                          <div className="text-sm text-gray-500 flex items-center gap-1 mt-1">
+                            <MapPin className="h-3 w-3" />
+                            {data.location.address}
+                          </div>
+                        </>
+                      </CardContent>
+                    </Card>
+                  ))}
+
+                  {/* No results message */}
+                  {!isLoading && getFilteredThefts().length === 0 && getFilteredSightings().length === 0 && (
+                    <div className="text-center py-8">
+                      <div className="text-gray-400 text-sm">
+                        {searchQuery ? "No reports found matching your search." : "No reports available."}
+                      </div>
                     </div>
                   )}
-                </Card>
-              ))} */}
-
+                </>
+              )}
             </div>
 
             <div className="mt-6 pt-4 border-t">
