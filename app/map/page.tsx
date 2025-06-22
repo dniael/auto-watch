@@ -11,10 +11,11 @@ import { useRef, useEffect } from "react"
 import mapboxgl from "mapbox-gl"
 // import "@mapbox/mapbox-gl-geocoder/dist/mapbox-gl-geocoder.css";
 import "mapbox-gl/dist/mapbox-gl.css"
-import Marker from "./marker"
+import StolenMarker from "./stolen-marker"
+import SightMarker from "./sighting-marker"
 import LocationMarker from "./location-marker"
 import { collection, getDocs } from "firebase/firestore"
-import { theftCollection } from "@/lib/controller"
+import { theftCollection , sightingCollection } from "@/lib/controller"
 
 
 // Mock data for demonstration
@@ -67,6 +68,7 @@ export default function MapPage() {
   const [theftsData, setTheftsData] = useState<any[]>([])
   const [theftsClusters, setTheftsClusters] = useState<any[]>([])
   const [theftsLocations, setTheftsLocations] = useState<any[]>([])
+  const [sightsLocations, setSightsLocations] = useState<any[]>([])
   const [sightings, setSightings] = useState<any[]>([])
   
   const [filter, setFilter] = useState("all")
@@ -74,18 +76,25 @@ export default function MapPage() {
   const mapRef = useRef<any>(null)
   const mapContainerRef = useRef<any>(null)
 
-  const fetchTheftsData = async () => {
+  const fetchAllData = async () => {
     try {
       const querySnapshot = await getDocs(theftCollection);
+      const querySnapshot2 = await getDocs(sightingCollection);
       const thefts = querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      const sights = querySnapshot2.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
       setTheftsData(thefts);
+      setSightings(sights);
       setTheftsLocations(thefts.map((theft: any) => theft.location));
+      setSightsLocations(sights.map((sighting: any) => sighting.location))
       console.log("Fetched thefts locations:", thefts.map((theft: any) => theft.location));
+      console.log("Fetched sights locations:", sights.map((sighting: any) => sighting.location));
       console.log("Fetched thefts data:", thefts);
+      console.log("Fetched thefts data:", sights);
     } catch (error) {
       console.error("Error fetching fire data:", error);
     }
   };
+
 
   useEffect(() => {
     if (navigator.geolocation) {
@@ -110,7 +119,7 @@ export default function MapPage() {
             })
 
             mapRef.current.on("load", () => {
-              fetchTheftsData() // Fetch thefts data when map loads
+              fetchAllData() // Fetch thefts data when map loads
               setMapReady(true) // Enable marker once map is loaded
             })
           } catch (error) {
@@ -136,7 +145,7 @@ export default function MapPage() {
             })
 
             mapRef.current.on("load", () => {
-              fetchTheftsData() // Fetch thefts data when map loads
+              fetchAllData() // Fetch thefts data when map loads
               setMapReady(true) // Enable marker once map is loaded
             })
           } catch (error) {
@@ -162,7 +171,7 @@ export default function MapPage() {
         })
 
         mapRef.current.on("load", () => {
-          fetchTheftsData() // Fetch thefts data when map loads
+          fetchAllData() // Fetch thefts data when map loads
           setMapReady(true) // Enable marker once map is loaded
         })
       } catch (error) {
@@ -180,9 +189,10 @@ export default function MapPage() {
   useEffect(() => {
     // Update map center when selected report changes
     if (selectedReport && mapRef.current) {
-      const { lat, lng } = selectedReport;
+      const { latitude, longitude } = selectedReport.location.coordinates;
+      if (isNaN(latitude) || isNaN(longitude)) return;
       mapRef.current.flyTo({
-        center: [lng, lat],
+        center: [longitude, latitude],
         zoom: 15,
         essential: true, // This ensures the animation is not interrupted
       });
@@ -223,20 +233,41 @@ export default function MapPage() {
         {/* Map Area */}
         <div className="flex-1 relative bg-gray-200" ref={mapContainerRef} />
         {mapReady && mapRef.current && (<LocationMarker map={mapRef.current} />)}
-        {mapReady && mapRef.current && theftsLocations && (
-          theftsLocations.map((loc, index) => (
-          <Marker
+        {(mapReady && mapRef.current && theftsLocations) &&  (
+          theftsLocations.map((loc, index)  => (
+          <StolenMarker
             key={index}
             map={mapRef.current}
             feature={{
               geometry: {
                 coordinates: [loc.coordinates.longitude, loc.coordinates.latitude],
+              },
+              properties:{
+                mag: 0
               }
             }}
           />
         ))
         )}
 
+        {(mapReady && mapRef.current && sightsLocations) && (
+(
+          sightsLocations.map((loc, index) => (
+            <SightMarker
+              key = {index}
+              map = {mapRef.current}
+              feature = {{
+                geometry: {
+                  coordinates: [loc.coordinates.longitude, loc.coordinates.latitude],
+                },
+                properties: {
+                  mag: 0
+                }
+              }}
+            />
+          ))
+        )
+        )}
         {/* Sidebar */}
         <div className="w-80 bg-white border-l overflow-y-auto">
           <div className="p-4">
@@ -248,8 +279,109 @@ export default function MapPage() {
             <div className="space-y-4">
               <h3 className="font-semibold text-gray-900">Recent Reports</h3>
 
-              {mockReports.map((report) => (
+              {/* shit i added */}
+
+              {theftsData.map((data, index) => (
                 <Card
+                  key = {index}
+                  className={`cursor-pointer transition-all duration-200 relative group hover:shadow-md ${
+                    selectedReport?.id === data.id ? "ring-2 ring-blue-500" : ""
+                  }`}
+                  onClick={() => setSelectedReport(data)}
+                >
+                  <CardHeader className = "pb-2">
+                    <div className = "flex items-center justify-between">
+                      <Badge 
+                        variant = "destructive"
+                        className = "bg-red-600"
+                      >
+                        <>
+                          <AlertTriangle className="h-3 w-3 mr-1" />
+                          Theft
+                        </>
+                      </Badge>
+                      <span className="text-xs text-gray-500">{Date.now() - data.info.date} {"hours ago"} </span> 
+                    </div>
+                  </CardHeader>
+                  <CardContent className = "pt-0">
+                    <>
+                        <div className="font-semibold">{data.info.licensePlate}</div>
+                        <div className="text-sm text-gray-600">
+                          {data.info.year} {data.info.color} {data.info.brand} {data.info.model}
+                        </div>
+                        <div className="text-sm text-gray-500 flex items-center gap-1 mt-1">
+                          <MapPin className="h-3 w-3" />
+                          {data.location.address}
+                        </div>
+                      </>
+                  </CardContent>
+
+                  <div className="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 rounded-lg flex items-center justify-center">
+                      <Button
+                        size="sm"
+                        className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg transform scale-95 group-hover:scale-100 transition-transform duration-200"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          // Navigate to sighting page with vehicle data
+                          const vehicleData = encodeURIComponent(
+                            JSON.stringify({
+                              licensePlate: data.info.licensePlate,
+                              make: data.info.brand,
+                              model: data.info.model,
+                              color: data.info.color,
+                              year: data.info.year,
+                            }),
+                          )
+                          window.location.href = `/sighting?vehicle=${vehicleData}`
+                        }}
+                      >
+                        <Eye className="h-4 w-4 mr-1" />I Saw This Car
+                      </Button>
+                    </div>
+                </Card>
+              ))}
+
+              {sightings.map((data, index) => (
+                <Card
+                  key = {index}
+                  className={`cursor-pointer transition-all duration-200 relative group hover:shadow-md ${
+                    selectedReport?.id === data.id ? "ring-2 ring-blue-500" : ""
+                  }`}
+                  onClick={() => setSelectedReport(data)}
+                >
+                  <CardHeader className = "pb-2">
+                    <div className = "flex items-center justify-between">
+                      <Badge
+                        variant = "secondary"
+                        className = "bg-yellow-600"
+                      >
+                        <>
+                            <Eye className="h-3 w-3 mr-1" />
+                            Sighting
+                        </>
+                      </Badge>
+                      <span className="text-xs text-gray-500">{Date.now() - data.info.date} {"hours ago"} </span> 
+                    </div>
+                  </CardHeader>
+                  <CardContent className = "pt-0">
+                    <>
+                        <div className="font-semibold">Sighting: {data.info.licemsePlate}</div>
+                        <div className="text-sm text-gray-600">Reported by {data.contact.name}</div>
+                        <div className="text-sm text-gray-500 flex items-center gap-1 mt-1">
+                          <MapPin className="h-3 w-3" />
+                          {data.location.address}
+                        </div>
+                      </>
+                  </CardContent>
+                </Card>
+              ))}
+
+              {/* stuff i added ends*/}
+
+
+              
+              {/* {mockReports.map((report) => (
+                <Card 
                   key={report.id}
                   className={`cursor-pointer transition-all duration-200 relative group ${
                     selectedReport?.id === report.id ? "ring-2 ring-blue-500" : ""
@@ -296,6 +428,7 @@ export default function MapPage() {
                       </>
                     ) : (
                       <>
+                        
                         <div className="font-semibold">Sighting: {report.licensePlate}</div>
                         <div className="text-sm text-gray-600">Reported by {report.reportedBy}</div>
                         <div className="text-sm text-gray-500 flex items-center gap-1 mt-1">
@@ -306,7 +439,8 @@ export default function MapPage() {
                     )}
                   </CardContent>
 
-                  {/* Hover Button for Theft Reports */}
+                  //Hover Button for Theft Reports
+
                   {report.type === "theft" && (
                     <div className="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 rounded-lg flex items-center justify-center">
                       <Button
@@ -332,7 +466,8 @@ export default function MapPage() {
                     </div>
                   )}
                 </Card>
-              ))}
+              ))} */}
+
             </div>
 
             <div className="mt-6 pt-4 border-t">
