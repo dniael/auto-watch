@@ -14,6 +14,8 @@ import "mapbox-gl/dist/mapbox-gl.css"
 import Marker from "./marker"
 import LocationMarker from "./location-marker"
 import { collection, getDocs } from "firebase/firestore"
+import { theftMarkersCollection } from "@/lib/controller"
+import * as turf from "@turf/turf"
 
 
 // Mock data for demonstration
@@ -26,11 +28,11 @@ const mockReports = [
     model: "Camry",
     color: "White",
     year: 2020,
-    location: "Downtown LA",
+    location: "North York Centre",
     timeAgo: "2 hours ago",
     sightings: 3,
-    lat: 34.0522,
-    lng: -118.2437,
+    lat: 43.7690,
+    lng: -79.4120,
   },
   {
     id: 2,
@@ -40,34 +42,97 @@ const mockReports = [
     model: "Civic",
     color: "Black",
     year: 2019,
-    location: "Hollywood",
+    location: "Fairview Mall",
     timeAgo: "5 hours ago",
     sightings: 1,
-    lat: 34.0928,
-    lng: -118.3287,
+    lat: 43.7765,
+    lng: -79.3468,
   },
   {
     id: 3,
     type: "sighting",
     licensePlate: "ABC-123",
-    location: "Beverly Hills",
+    location: "York Mills & Bayview",
     timeAgo: "30 minutes ago",
     reportedBy: "Community Member",
-    lat: 34.0736,
-    lng: -118.4004,
+    lat: 43.7466,
+    lng: -79.3832,
   },
-]
+];
 
 mapboxgl.accessToken = "pk.eyJ1IjoicGxhdGludW1jb3AiLCJhIjoiY21jNXU4bmoyMHR3ZjJsbzR0OWxpNjFkYSJ9.OHvYs3NyOpLGSMj1CMI1xg"
 
 export default function MapPage() {
   const [selectedReport, setSelectedReport] = useState<any>(null)
   const [mapReady, setMapReady] = useState(false)
+  const [theftsData, setTheftsData] = useState<any[]>([])
+  const [theftsClusters, setTheftsClusters] = useState<any[]>([])
+  const [theftsLocations, setTheftsLocations] = useState<any[]>([])
+  const [sightings, setSightings] = useState<any[]>([])
   
   const [filter, setFilter] = useState("all")
 
   const mapRef = useRef<any>(null)
   const mapContainerRef = useRef<any>(null)
+
+  const fetchTheftsData = async () => {
+    try {
+      const querySnapshot = await getDocs(theftMarkersCollection);
+      const thefts = querySnapshot.docs.map((doc) => doc.data());
+      setTheftsData(thefts);
+      setTheftsLocations(thefts.map((theft) => theft.location));
+      console.log("Fetched thefts locations:", thefts.map((theft) => theft.location));
+      console.log("Fetched thefts data:", thefts);
+    } catch (error) {
+      console.error("Error fetching fire data:", error);
+    }
+  };
+
+  // const clusterThefts = (locations: any, zoom: any) => {
+  //   const zoomFactor = 0.01 / Math.pow(2, zoom - 10);
+  //   const clusters: any[] = [];
+
+  //   locations.forEach((location: any) => {
+  //     let added = false;
+  //     for (const cluster of clusters) {
+  //       const [lng, lat] = cluster.center;
+  //       const distance = Math.sqrt(Math.pow(lng - location.longitude, 2) + Math.pow(lat - location.latitude, 2));
+
+  //       if (distance <= zoomFactor) {
+  //         cluster.fires.push(location);
+  //         cluster.center = [
+  //           (lng * cluster.fires.length + location.longitude) / (cluster.fires.length + 1),
+  //           (lat * cluster.fires.length + location.latitude) / (cluster.fires.length + 1),
+  //         ];
+  //         added = true;
+  //         break;
+  //       }
+  //     }
+
+  //     if (!added) {
+  //       clusters.push({
+  //         center: [location.longitude, location.latitude],
+  //         thefts: [location],
+  //       });
+  //     }
+  //   });
+
+  //   return clusters;
+  // };
+
+  // const updateClusters = () => {
+  //   if (!mapRef.current) return;
+
+  //   if (theftsData.length === 0) {
+  //     fetchTheftsData();
+  //   }
+
+  //   if (theftsData.length === 0) return;
+
+  //   const zoom = mapRef.current.getZoom();
+  //   const clusters = clusterThefts(theftsData, zoom);
+  //   setTheftsClusters(clusters);
+  // };
 
   useEffect(() => {
     if (navigator.geolocation) {
@@ -92,6 +157,7 @@ export default function MapPage() {
             })
 
             mapRef.current.on("load", () => {
+              fetchTheftsData() // Fetch thefts data when map loads
               setMapReady(true) // Enable marker once map is loaded
             })
           } catch (error) {
@@ -117,6 +183,7 @@ export default function MapPage() {
             })
 
             mapRef.current.on("load", () => {
+              fetchTheftsData() // Fetch thefts data when map loads
               setMapReady(true) // Enable marker once map is loaded
             })
           } catch (error) {
@@ -142,6 +209,7 @@ export default function MapPage() {
         })
 
         mapRef.current.on("load", () => {
+          fetchTheftsData() // Fetch thefts data when map loads
           setMapReady(true) // Enable marker once map is loaded
         })
       } catch (error) {
@@ -156,8 +224,134 @@ export default function MapPage() {
     }
   }, [])
 
-  // useEffect(() => {
+  useEffect(() => {
     // Update map center when selected report changes
+    if (selectedReport && mapRef.current) {
+      const { lat, lng } = selectedReport;
+      mapRef.current.flyTo({
+        center: [lng, lat],
+        zoom: 15,
+        essential: true, // This ensures the animation is not interrupted
+      });
+    }
+  }
+  , [selectedReport]);
+
+  // useEffect(() => {
+  //   if (!mapRef.current || !mapReady || theftsData.length < 1) return;
+
+  //   // Remove existing box layer and source if they exist
+  //   if (mapRef.current.getLayer("bbox-layer")) {
+  //     mapRef.current.removeLayer("bbox-layer");
+  //   }
+  //   if (mapRef.current.getSource("bbox-source")) {
+  //     mapRef.current.removeSource("bbox-source");
+  //   }
+
+  //   console.log(theftsLocations);
+
+  //   // Create a Feature Collection from theft points
+  //   const points = turf.featureCollection(
+  //     theftsLocations.map((loc) => turf.point([loc.coordinates.latitude, loc.coordinates.longitude]))
+  //   );
+
+  //   // Check the number of points
+  //   if (points.features.length === 1) {
+  //     // If there's only one point, create a circle around it
+  //     const singleTheft = points.features[0];
+  //     const circle = turf.circle(singleTheft.geometry.coordinates, 0.2, {
+  //       steps: 64,
+  //       units: "kilometers",
+  //     });
+
+  //     // Add the source and layer for the circle
+  //     if (!mapRef.current.getSource("bbox-source")) {
+  //       mapRef.current.addSource("bbox-source", {
+  //         type: "geojson",
+  //         data: circle,
+  //       });
+  //     } else {
+  //       mapRef.current.getSource("bbox-source").setData(circle);
+  //     }
+
+  //     if (!mapRef.current.getLayer("bbox-layer")) {
+  //       mapRef.current.addLayer({
+  //         id: "bbox-layer",
+  //         type: "fill",
+  //         source: "bbox-source",
+  //         layout: {},
+  //         paint: {
+  //           "fill-color": "#00ff00",
+  //           "fill-opacity": 0.2,
+  //           "fill-outline-color": "#008000",
+  //         },
+  //       });
+  //     }
+  //   } else {
+  //     // Group points into clusters based on distance
+  //     const clusters: any[] = [];
+  //     points.features.forEach((point) => {
+  //       let addedToCluster = false;
+  //       for (const cluster of clusters) {
+  //         const distance = turf.distance(cluster[0].geometry.coordinates, point.geometry.coordinates, {
+  //           units: "kilometers",
+  //         });
+  //         if (distance <= 3) {
+  //           cluster.push(point);
+  //           addedToCluster = true;
+  //           break;
+  //         }
+  //       }
+  //       if (!addedToCluster) {
+  //         clusters.push([point]);
+  //       }
+  //     });
+
+  //     // Process each cluster
+  //     clusters.forEach((cluster, index) => {
+  //       let geometry;
+  //       if (cluster.length === 1) {
+  //         // Create a circle for a single point cluster
+  //         geometry = turf.circle(cluster[0].geometry.coordinates, 0.2, {
+  //           steps: 64,
+  //           units: "kilometers",
+  //         });
+  //       } else {
+  //         // Calculate the convex hull for multiple points
+  //         const clusterPoints = turf.featureCollection(cluster);
+  //         const hull = turf.convex(clusterPoints);
+  //         geometry = turf.buffer(hull as any, 0.2, { units: "kilometers" });
+  //       }
+
+  //       // Add the source and layer to the map for each cluster
+  //       const sourceId = `bbox-source-${index}`;
+  //       const layerId = `bbox-layer-${index}`;
+
+  //       if (!mapRef.current.getSource(sourceId)) {
+  //         mapRef.current.addSource(sourceId, {
+  //           type: "geojson",
+  //           data: geometry,
+  //         });
+  //       } else {
+  //         mapRef.current.getSource(sourceId).setData(geometry);
+  //       }
+
+  //       if (!mapRef.current.getLayer(layerId)) {
+  //         mapRef.current.addLayer({
+  //           id: layerId,
+  //           type: "fill",
+  //           source: sourceId,
+  //           layout: {},
+  //           paint: {
+  //             "fill-color": "#00ff00",
+  //             "fill-opacity": 0.2,
+  //             "fill-outline-color": "#008000",
+  //           },
+  //         });
+  //       }
+  //     });
+  //   }
+  // }, [theftsData, theftsLocations, mapReady]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -191,19 +385,18 @@ export default function MapPage() {
       <div className="flex h-[calc(100vh-80px)]">
         {/* Map Area */}
         <div className="flex-1 relative bg-gray-200" ref={mapContainerRef} />
-        {mapReady && mapRef.current && (
-          <>
-            <LocationMarker map={mapRef.current} />
-            <Marker
-              key={1}
-              map={mapRef.current}
-              feature={{
-                geometry: {
-                  coordinates: [-79.3755984780575, 43.74082538389782],
-                },
-              }}
-            />
-          </>
+        {mapReady && mapRef.current && theftsLocations && (
+          theftsLocations.map((loc, index) => (
+          <Marker
+            key={index}
+            map={mapRef.current}
+            feature={{
+              geometry: {
+                coordinates: [loc.coordinates.latitude, loc.coordinates.longitude],
+              }
+            }}
+          />
+        ))
         )}
 
         {/* Sidebar */}
