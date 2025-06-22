@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { ArrowLeft, MapPin, AlertTriangle, Eye, Search, Filter, ChevronDown } from "lucide-react"
+import { ArrowLeft, MapPin, AlertTriangle, Eye, Search, Filter, ChevronDown, Target } from "lucide-react"
 import Link from "next/link"
 import { useState, useCallback } from "react"
 import { useRef, useEffect, useLayoutEffect } from "react"
@@ -97,6 +97,36 @@ export default function MapPage() {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const reportsContainerRef = useRef<HTMLDivElement>(null)
   const lineCoordsRef = useRef<string | null>(null);
+
+  const fitBoundsToMarkers = () => {
+    if (!mapRef.current) return;
+
+    const theftLocations = getFilteredTheftLocations();
+    const sightLocations = getFilteredSightLocations();
+    const allLocations = [...theftLocations, ...sightLocations].map(loc => [
+      loc.coordinates.longitude,
+      loc.coordinates.latitude
+    ]);
+
+    if (allLocations.length === 0) return;
+
+    if (allLocations.length === 1) {
+      mapRef.current.flyTo({
+        center: allLocations[0] as [number, number],
+        zoom: 14
+      });
+      return;
+    }
+
+    const bounds = allLocations.reduce((bounds, coord) => {
+      return bounds.extend(coord as [number, number]);
+    }, new mapboxgl.LngLatBounds(allLocations[0] as [number, number], allLocations[0] as [number, number]));
+
+    mapRef.current.fitBounds(bounds, {
+      padding: 100, // padding in pixels
+      duration: 1000 // animation duration in ms
+    });
+  };
 
   const fetchAllData = async () => {
     setIsLoading(true);
@@ -935,6 +965,9 @@ export default function MapPage() {
                   e.target.focus()                  
                 }}
               />
+              <Button variant="outline" size="icon" onClick={fitBoundsToMarkers} title="Fit to markers">
+                <Target className="h-4 w-4" />
+              </Button>
             </div>
 
             <div className="space-y-4 w-50" ref={reportsContainerRef}>
