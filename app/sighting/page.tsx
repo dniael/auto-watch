@@ -14,7 +14,6 @@ import { useState, useMemo, useEffect, useRef } from "react"
 import { useSearchParams } from "next/navigation"
 import { addSightingMarker } from "@/lib/controller"
 import { useRouter } from "next/navigation"
-import { AddressAutofill } from '@mapbox/search-js-react';
 import { useToast } from "@/hooks/use-toast"
 import dynamic from "next/dynamic"
 
