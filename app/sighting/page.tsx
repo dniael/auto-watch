@@ -16,7 +16,7 @@ import { addSightingMarker } from "@/lib/controller"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
 import dynamic from "next/dynamic"
-
+import { Suspense } from "react"
 
 const AddressAutofillAny = dynamic(() => import('@mapbox/search-js-react').then(mod => mod.AddressAutofill) as any, {
   ssr: false // Disable server-side rendering for this component
@@ -275,7 +275,8 @@ export default function SightingPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <Suspense fallback={<div>Loading...</div>}>
+          <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="bg-white border-b">
         <div className="container mx-auto px-4 py-4 flex items-center gap-4">
@@ -543,5 +544,6 @@ export default function SightingPage() {
         </Card>
       </div>
     </div>
+    </Suspense>
   )
 }
