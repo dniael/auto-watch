@@ -76,6 +76,9 @@ export default function MapPage() {
   
   const [filter, setFilter] = useState("all")
   const [searchQuery, setSearchQuery] = useState("")
+  const [sortBy, setSortBy] = useState<"time" | "alphabetical" | "distance">("time")
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc")
+  const [currentLocation, setCurrentLocation] = useState<[number, number] | null>(null)
 
   const mapRef = useRef<any>(null)
   const mapContainerRef = useRef<any>(null)
@@ -131,7 +134,8 @@ export default function MapPage() {
       );
     }
     
-    return filtered;
+    // Apply sorting
+    return sortData(filtered);
   };
 
   const getFilteredSightings = () => {
@@ -149,7 +153,8 @@ export default function MapPage() {
       );
     }
     
-    return filtered;
+    // Apply sorting
+    return sortData(filtered);
   };
 
   const getFilteredTheftLocations = () => {
@@ -194,12 +199,70 @@ export default function MapPage() {
     }
   };
 
+  // Calculate distance between two coordinates (Haversine formula)
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+    const R = 6371; // Earth's radius in kilometers
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+      Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+  };
+
+  // Sort data based on selected criteria
+  const sortData = (data: any[]): any[] => {
+    if (!data.length) return data;
+
+    const sorted = [...data].sort((a, b) => {
+      let comparison = 0;
+
+      switch (sortBy) {
+        case "time":
+          const timeA = a.info?.date?.seconds || 0;
+          const timeB = b.info?.date?.seconds || 0;
+          comparison = timeA - timeB;
+          break;
+
+        case "alphabetical":
+          const plateA = (a.info?.licensePlate || a.info?.licemsePlate || "").toLowerCase();
+          const plateB = (b.info?.licensePlate || b.info?.licemsePlate || "").toLowerCase();
+          comparison = plateA.localeCompare(plateB);
+          break;
+
+        case "distance":
+          if (!currentLocation) return 0;
+          const [userLng, userLat] = currentLocation;
+          
+          const distA = calculateDistance(
+            userLat, userLng,
+            a.location.coordinates.latitude,
+            a.location.coordinates.longitude
+          );
+          const distB = calculateDistance(
+            userLat, userLng,
+            b.location.coordinates.latitude,
+            b.location.coordinates.longitude
+          );
+          comparison = distA - distB;
+          break;
+      }
+
+      return sortOrder === "asc" ? comparison : -comparison;
+    });
+
+    return sorted;
+  };
+
   useEffect(() => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
           const userLng = position.coords.longitude
           const userLat = position.coords.latitude
+          setCurrentLocation([userLng, userLat])
 
           // Double-check container exists before creating map
           if (!mapContainerRef.current) {
@@ -356,6 +419,104 @@ export default function MapPage() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="min-w-[140px] justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">
+                      {sortBy === "time" ? "⏰" : sortBy === "alphabetical" ? "🔤" : "📍"}
+                    </span>
+                    <span className="font-medium">
+                      {sortBy === "time" ? "Time" : sortBy === "alphabetical" ? "License" : "Distance"}
+                    </span>
+                  </div>
+                  <ChevronDown className="h-4 w-4 ml-2 opacity-50" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <div className="px-2 py-1.5 text-xs font-medium text-gray-500 uppercase tracking-wide">
+                  Sort by
+                </div>
+                <DropdownMenuItem 
+                  onClick={() => setSortBy("time")}
+                  className={`flex items-center gap-3 px-3 py-2.5 ${sortBy === "time" ? "bg-blue-50 text-blue-700" : ""}`}
+                >
+                  <div className="flex items-center gap-2 flex-1">
+                    <span className="text-lg">⏰</span>
+                    <div>
+                      <div className="font-medium">Time</div>
+                      <div className="text-xs text-gray-500">Most recent first</div>
+                    </div>
+                  </div>
+                  {sortBy === "time" && (
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs font-medium">
+                        {sortOrder === "desc" ? "Newest" : "Oldest"}
+                      </span>
+                      <span className="text-lg">{sortOrder === "desc" ? "↓" : "↑"}</span>
+                    </div>
+                  )}
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  onClick={() => setSortBy("alphabetical")}
+                  className={`flex items-center gap-3 px-3 py-2.5 ${sortBy === "alphabetical" ? "bg-blue-50 text-blue-700" : ""}`}
+                >
+                  <div className="flex items-center gap-2 flex-1">
+                    <span className="text-lg">🔤</span>
+                    <div>
+                      <div className="font-medium">License Plate</div>
+                      <div className="text-xs text-gray-500">A-Z order</div>
+                    </div>
+                  </div>
+                  {sortBy === "alphabetical" && (
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs font-medium">
+                        {sortOrder === "asc" ? "A-Z" : "Z-A"}
+                      </span>
+                      <span className="text-lg">{sortOrder === "asc" ? "↓" : "↑"}</span>
+                    </div>
+                  )}
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  onClick={() => setSortBy("distance")}
+                  className={`flex items-center gap-3 px-3 py-2.5 ${sortBy === "distance" ? "bg-blue-50 text-blue-700" : ""}`}
+                >
+                  <div className="flex items-center gap-2 flex-1">
+                    <span className="text-lg">📍</span>
+                    <div>
+                      <div className="font-medium">Distance</div>
+                      <div className="text-xs text-gray-500">Nearest first</div>
+                    </div>
+                  </div>
+                  {sortBy === "distance" && (
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs font-medium">
+                        {sortOrder === "asc" ? "Nearest" : "Farthest"}
+                      </span>
+                      <span className="text-lg">{sortOrder === "asc" ? "↓" : "↑"}</span>
+                    </div>
+                  )}
+                </DropdownMenuItem>
+                <div className="border-t border-gray-100 my-1"></div>
+                <DropdownMenuItem 
+                  onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
+                  className="flex items-center gap-3 px-3 py-2.5"
+                >
+                  <div className="flex items-center gap-2 flex-1">
+                    <span className="text-lg">🔄</span>
+                    <div>
+                      <div className="font-medium">Reverse Order</div>
+                      <div className="text-xs text-gray-500">Flip current sort</div>
+                    </div>
+                  </div>
+                  <span className="text-lg font-medium">
+                    {sortOrder === "asc" ? "↓" : "↑"}
+                  </span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            
             <Button size="sm" asChild className="bg-red-600 hover:bg-red-700">
               <Link href="/report">Report Theft</Link>
             </Button>
