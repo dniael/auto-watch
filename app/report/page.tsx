@@ -12,10 +12,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { AlertTriangle, ArrowLeft, MapPin, Upload, X, Camera, Video } from "lucide-react"
 import { AddressAutofill } from '@mapbox/search-js-react'
+import dynamic from 'next/dynamic'
 import { addTheftMarker } from '@/lib/controller'
 import { useToast } from "@/hooks/use-toast"
 
-const AddressAutofillAny = AddressAutofill as any;
+
+const AddressAutofillAny = dynamic(() => import('@mapbox/search-js-react').then(mod => mod.AddressAutofill) as any, {
+  ssr: false // Disable server-side rendering for this component
+}) as any
 
 // Firebase Database Type Definition
 type TheftReport = {

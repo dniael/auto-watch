@@ -16,8 +16,13 @@ import { addSightingMarker } from "@/lib/controller"
 import { useRouter } from "next/navigation"
 import { AddressAutofill } from '@mapbox/search-js-react';
 import { useToast } from "@/hooks/use-toast"
+import dynamic from "next/dynamic"
 
-const AddressAutofillAny = AddressAutofill as any;
+
+const AddressAutofillAny = dynamic(() => import('@mapbox/search-js-react').then(mod => mod.AddressAutofill) as any, {
+  ssr: false // Disable server-side rendering for this component
+}) as any
+
 
 export default function SightingPage() {
   const router = useRouter()
