@@ -1,7 +1,8 @@
 "use client"
 
-import type React from "react"
-
+import { useState, useEffect, useRef } from 'react'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -9,13 +10,10 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { ArrowLeft, MapPin, Camera, Video, AlertTriangle } from "lucide-react"
-import Link from "next/link"
-import { useState, useEffect, useRef } from "react"
-import { addTheftMarker } from "@/lib/controller"
-import { useRouter } from "next/navigation"
-
-import { AddressAutofill } from '@mapbox/search-js-react';
+import { AlertTriangle, ArrowLeft, MapPin, Upload, X, Camera, Video } from "lucide-react"
+import { AddressAutofill } from '@mapbox/search-js-react'
+import { addTheftMarker } from '@/lib/controller'
+import { useToast } from "@/hooks/use-toast"
 
 const AddressAutofillAny = AddressAutofill as any;
 
@@ -48,6 +46,7 @@ type TheftReport = {
 
 export default function ReportPage() {
   const router = useRouter()
+  const { toast } = useToast()
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [addressError, setAddressError] = useState("")
@@ -230,7 +229,10 @@ export default function ReportPage() {
         console.log('Saved theft report with photo.')
         
         // Redirect to map page
-        alert("Report submitted successfully! The community has been alerted.")
+        toast({
+          title: "Report submitted successfully!",
+          description: "The community has been alerted."
+        })
         router.push('/map')
         setIsSubmitting(false)
       }
@@ -269,7 +271,10 @@ export default function ReportPage() {
       console.log('Saved theft report without photo.')
       
       // Redirect to map page
-      alert("Report submitted successfully! The community has been alerted.")
+      toast({
+        title: "Report submitted successfully!",
+        description: "The community has been alerted."
+      })
       router.push('/map')
       setIsSubmitting(false)
     }

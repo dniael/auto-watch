@@ -79,7 +79,7 @@ export default function DashboardPage() {
         {/* Welcome */}
         <div className="mb-8">
           <h2 className="text-2xl font-bold mb-2">Welcome back, {mockUserData.name}</h2>
-          <p className="text-gray-600">Here's your CrisisLens activity and alerts.</p>
+          <p className="text-gray-600">Here's your AutoWatch activity and alerts.</p>
         </div>
 
         {/* Stats Cards */}

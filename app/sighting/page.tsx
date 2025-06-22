@@ -14,13 +14,14 @@ import { useState, useMemo, useEffect, useRef } from "react"
 import { useSearchParams } from "next/navigation"
 import { addSightingMarker } from "@/lib/controller"
 import { useRouter } from "next/navigation"
-
 import { AddressAutofill } from '@mapbox/search-js-react';
+import { useToast } from "@/hooks/use-toast"
 
 const AddressAutofillAny = AddressAutofill as any;
 
 export default function SightingPage() {
   const router = useRouter()
+  const { toast } = useToast()
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [address, setAddress] = useState("")
@@ -222,7 +223,10 @@ export default function SightingPage() {
         console.log('Saved sighting report with photo.')
         
         // Redirect to map page
-        alert("Sighting reported successfully! The owner has been notified.")
+        toast({
+          title: "Sighting Reported",
+          description: "The sighting report has been successfully submitted. The owner has been notified."
+        })
         router.push('/map')
         setIsSubmitting(false)
       }
@@ -255,7 +259,10 @@ export default function SightingPage() {
       console.log('Saved sighting report without photo.')
       
       // Redirect to map page
-      alert("Sighting reported successfully! The owner has been notified.")
+      toast({
+        title: "Sighting Reported",
+        description: "The sighting report has been successfully submitted. The owner has been notified."
+      })
       router.push('/map')
       setIsSubmitting(false)
     }

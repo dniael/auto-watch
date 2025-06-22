@@ -10,9 +10,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ArrowLeft, Shield, Bell, MapPin, Eye } from "lucide-react"
 import Link from "next/link"
 import { useState } from "react"
+import { useToast } from "@/hooks/use-toast"
 
 export default function AuthPage() {
   const [isLoading, setIsLoading] = useState(false)
+  const { toast } = useToast()
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -21,7 +23,10 @@ export default function AuthPage() {
     // Simulate auth
     await new Promise((resolve) => setTimeout(resolve, 1500))
 
-    alert("Authentication successful! Welcome to CrisisLens.")
+    toast({
+      title: "Authentication successful!",
+      description: "Welcome to AutoWatch."
+    })
     setIsLoading(false)
   }
 
@@ -47,7 +52,7 @@ export default function AuthPage() {
         <Card>
           <CardHeader className="text-center">
             <Shield className="h-12 w-12 text-blue-600 mx-auto mb-4" />
-            <CardTitle>Join CrisisLens</CardTitle>
+            <CardTitle>Join AutoWatch</CardTitle>
             <CardDescription>Create an account to get personalized alerts and track your reports</CardDescription>
           </CardHeader>
           <CardContent>
