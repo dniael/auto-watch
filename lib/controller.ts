@@ -5,4 +5,4 @@ export const firestore = getFirestore(app);
 
 
 // TheftMarker Collection
-export const skibidiCollection = collection(firestore, "theftmarkers");
+export const theftMarkersCollection = collection(firestore, "theftmarkers");
