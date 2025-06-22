@@ -18,9 +18,10 @@ type FeatureProps ={
 interface MarkerProps {
   map: MapboxMap;
   feature: FeatureProps;
+  onClick?: () => void;
 }
 
-const StolenMarker: React.FC<MarkerProps> = ({ map, feature }) => {
+const StolenMarker: React.FC<MarkerProps> = ({ map, feature, onClick }) => {
   const { geometry, properties } = feature;
   const markerRef = useRef<mapboxgl.Marker | null>(null);
   const contentRef = useRef(document.createElement("div"));
@@ -44,8 +45,11 @@ const StolenMarker: React.FC<MarkerProps> = ({ map, feature }) => {
                         height: '2vw',
                         backgroundImage: 'url(../cartheftsymbol.svg)',
                         backgroundSize: 'cover',
-                        position: 'static'
+                        position: 'static',
+                        cursor: 'pointer',
+                        
                     }}
+                    onClick={onClick && (() => onClick)}
                 >
                 </div>,
                 contentRef.current

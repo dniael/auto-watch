@@ -200,6 +200,17 @@ export default function MapPage() {
   }
   , [selectedReport]);
 
+  const findByLocation = (location: any) => {
+    return theftsData.find((report) => {
+      const reportLocation = report.location.coordinates;
+      return (
+        reportLocation.latitude === location.coordinates.latitude &&
+        reportLocation.longitude === location.coordinates.longitude
+      );
+    }
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -246,6 +257,10 @@ export default function MapPage() {
                 mag: 0
               }
             }}
+            onClick={() => {
+              console.log("Clicked on marker at location:", loc);
+              setSelectedReport(findByLocation(loc))
+            }}
           />
         ))
         )}
@@ -253,6 +268,7 @@ export default function MapPage() {
         {(mapReady && mapRef.current && sightsLocations) && (
 (
           sightsLocations.map((loc, index) => (
+            console.log("Sighting location:", loc),
             <SightMarker
               key = {index}
               map = {mapRef.current}
