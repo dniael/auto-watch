@@ -13,9 +13,8 @@ import mapboxgl from "mapbox-gl"
 import "mapbox-gl/dist/mapbox-gl.css"
 import Marker from "./marker"
 import LocationMarker from "./location-marker"
-import { collection, getDocs } from "firebase/firestore"
-import { theftMarkersCollection } from "@/lib/controller"
-import * as turf from "@turf/turf"
+import { collection, doc, getDocs } from "firebase/firestore"
+import { theftCollection } from "@/lib/controller"
 
 
 // Mock data for demonstration
@@ -77,11 +76,11 @@ export default function MapPage() {
 
   const fetchTheftsData = async () => {
     try {
-      const querySnapshot = await getDocs(theftMarkersCollection);
-      const thefts = querySnapshot.docs.map((doc) => doc.data());
+      const querySnapshot = await getDocs(theftCollection);
+      const thefts = querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
       setTheftsData(thefts);
-      setTheftsLocations(thefts.map((theft) => theft.location));
-      console.log("Fetched thefts locations:", thefts.map((theft) => theft.location));
+      setTheftsLocations(thefts.map((theft: any) => theft.location));
+      console.log("Fetched thefts locations:", thefts.map((theft: any) => theft.location));
       console.log("Fetched thefts data:", thefts);
     } catch (error) {
       console.error("Error fetching fire data:", error);
@@ -392,7 +391,7 @@ export default function MapPage() {
             map={mapRef.current}
             feature={{
               geometry: {
-                coordinates: [loc.coordinates.latitude, loc.coordinates.longitude],
+                coordinates: [loc.coordinates.longitude, loc.coordinates.latitude],
               }
             }}
           />
