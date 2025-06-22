@@ -14,8 +14,7 @@ import "mapbox-gl/dist/mapbox-gl.css"
 import Marker from "./marker"
 import LocationMarker from "./location-marker"
 import { collection, getDocs } from "firebase/firestore"
-import { theftMarkersCollection } from "@/lib/controller"
-import * as turf from "@turf/turf"
+import { theftCollection } from "@/lib/controller"
 
 
 // Mock data for demonstration
@@ -77,7 +76,7 @@ export default function MapPage() {
 
   const fetchTheftsData = async () => {
     try {
-      const querySnapshot = await getDocs(theftMarkersCollection);
+      const querySnapshot = await getDocs(theftCollection);
       const thefts = querySnapshot.docs.map((doc) => doc.data());
       setTheftsData(thefts);
       setTheftsLocations(thefts.map((theft) => theft.location));
