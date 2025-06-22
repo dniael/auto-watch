@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { ArrowLeft, MapPin, AlertTriangle, Eye, Search, Filter, ChevronDown } from "lucide-react"
 import Link from "next/link"
-import { useState } from "react"
+import { useState, useCallback } from "react"
 import { useRef, useEffect, useLayoutEffect } from "react"
 import mapboxgl from "mapbox-gl"
 // import "@mapbox/mapbox-gl-geocoder/dist/mapbox-gl-geocoder.css";
@@ -77,6 +77,7 @@ const formatTimeAgo = (timestamp: any): string => {
 
 export default function MapPage() {
   const [selectedReport, setSelectedReport] = useState<any>(null)
+  const [selectedLicensePlate, setSelectedLicensePlate] = useState<string | null>(null);
   const [mapReady, setMapReady] = useState(false)
   const [theftsData, setTheftsData] = useState<any[]>([])
   const [theftsClusters, setTheftsClusters] = useState<any[]>([])
@@ -92,9 +93,10 @@ export default function MapPage() {
   const [currentLocation, setCurrentLocation] = useState<[number, number] | null>(null)
   const [isLoading, setIsLoading] = useState(false)
 
-  const mapRef = useRef<any>(null)
-  const mapContainerRef = useRef<any>(null)
+  const mapRef = useRef<mapboxgl.Map | null>(null);
+  const mapContainerRef = useRef<HTMLDivElement>(null);
   const reportsContainerRef = useRef<HTMLDivElement>(null)
+  const lineCoordsRef = useRef<string | null>(null);
 
   const fetchAllData = async () => {
     setIsLoading(true);
@@ -575,44 +577,121 @@ export default function MapPage() {
 
   // Handle popup close
   const handlePopupClose = () => {
-    console.log("Handling popup close");
-    // Simple clear - no complex timing logic
-    setSelectedReport(null);
-  };
+    console.log("Popup close triggered")
+    setSelectedReport(null)
+    setSelectedLicensePlate(null);
+  }
 
-  // Unified selection function that ensures consistent data structure
+  // When a report card is clicked in the sidebar
   const selectReport = (report: any, reportType: 'theft' | 'sighting') => {
-    console.log("Selecting report:", report, "Type:", reportType);
-    console.log("Original report reportType:", report.reportType);
+    if (!report) {
+      console.log('Clearing selection');
+      setSelectedReport(null);
+      setSelectedLicensePlate(null);
+      return;
+    }
+
+    const licensePlate = report.info?.licensePlate;
+    console.log(`Report selected. Type: ${reportType}, Report:`, report);
+    console.log(`License Plate: ${licensePlate}`);
     
-    // Always override the reportType to ensure consistency
-    const reportWithType = {
-      ...report,
-      reportType: reportType
-    };
-    
-    console.log("Report with type:", reportWithType);
-    console.log("Final reportType:", reportWithType.reportType);
-    
-    // Use a callback to ensure we're working with the latest state
-    setSelectedReport((prevSelected: any) => {
-      // If we're selecting the same report, don't update (prevents unnecessary re-renders)
-      if (prevSelected?.id === reportWithType.id && prevSelected?.reportType === reportWithType.reportType) {
-        console.log("Same report already selected, skipping update");
-        return prevSelected;
+    // Set the selected report with its type
+    setSelectedReport({ ...report, reportType });
+    setSelectedLicensePlate(licensePlate);
+
+    setSelectionCounter(prev => prev + 1);
+
+    if (mapRef.current && report.location?.coordinates) {
+      const { latitude, longitude } = report.location.coordinates;
+      if (latitude && longitude) {
+        console.log(`Flying to [${longitude}, ${latitude}]`);
+        mapRef.current.flyTo({
+          center: [longitude, latitude],
+          zoom: 15,
+          essential: true,
+        });
       }
-      
-      console.log("Updating selected report from:", prevSelected, "to:", reportWithType);
-      // Increment selection counter to force popup re-render
-      setSelectionCounter(prev => prev + 1);
-      return reportWithType;
-    });
+    } else {
+      console.log('Map or coordinates not available for flying.');
+    }
   };
 
-  // Debug selected report changes
+  // Separate effect for line creation/removal
   useEffect(() => {
-    console.log("Selected report changed:", selectedReport);
-  }, [selectedReport]);
+    if (mapRef.current && selectedLicensePlate) {
+      const allReports = [...theftsData, ...sightings];
+      const relatedReports = allReports
+        .filter(report => report.info?.licensePlate === selectedLicensePlate)
+        .sort((a, b) => {
+          const dateA = a.info?.date?.toDate ? a.info.date.toDate() : new Date(a.info.date);
+          const dateB = b.info?.date?.toDate ? b.info.date.toDate() : new Date(b.info.date);
+          return dateA.getTime() - dateB.getTime();
+        });
+
+      const coordinates = relatedReports.map(report => [
+        report.location.coordinates.longitude,
+        report.location.coordinates.latitude
+      ]);
+
+      if (coordinates.length > 1) {
+        const coordsString = JSON.stringify(coordinates);
+
+        // Only update data if coordinates have changed
+        if (coordsString !== lineCoordsRef.current) {
+          lineCoordsRef.current = coordsString;
+
+          const lineString: GeoJSON.Feature<GeoJSON.LineString> = {
+            type: "Feature",
+            properties: {},
+            geometry: {
+              type: "LineString",
+              coordinates: coordinates
+            }
+          };
+
+          const source = mapRef.current.getSource('route') as mapboxgl.GeoJSONSource;
+          if (source) {
+            source.setData(lineString);
+          } else {
+            mapRef.current.addSource('route', {
+              type: 'geojson',
+              data: lineString
+            });
+
+            mapRef.current.addLayer({
+              id: 'route',
+              type: 'line',
+              source: 'route',
+              layout: {
+                'line-join': 'round',
+                'line-cap': 'round'
+              },
+              paint: {
+                'line-color': '#ff5733',
+                'line-width': 3,
+                'line-opacity': 0.9,
+                'line-dasharray': [2, 2] // Static dashed line
+              }
+            });
+          }
+        }
+      }
+    } else {
+      // Clear line
+      if (mapRef.current && mapRef.current.getSource('route')) {
+        mapRef.current.removeLayer('route');
+        mapRef.current.removeSource('route');
+      }
+      lineCoordsRef.current = null;
+    }
+  }, [selectedLicensePlate, theftsData, sightings, mapReady]);
+
+  // Cleanup effect
+  useEffect(() => {
+    return () => {
+      // No animation frame to cancel, just in case
+    };
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -771,31 +850,25 @@ export default function MapPage() {
         <div className="flex-1 relative bg-gray-200" ref={mapContainerRef} />
         {mapReady && mapRef.current && (<LocationMarker map={mapRef.current} />)}
         {(mapReady && mapRef.current && getFilteredTheftLocations()) &&  (
-          getFilteredTheftLocations().map((loc, index)  => (
-          <StolenMarker
-            key={`theft-${index}`}
-            map={mapRef.current}
-            feature={{
-              geometry: {
-                coordinates: [loc.coordinates.longitude, loc.coordinates.latitude],
-              },
-              properties:{
-                mag: 0
-              }
-            }}
-            onClick={() => {
-              console.log("Clicked on theft marker at location:", loc);
-              const foundTheft = findTheftByLocation(loc);
-              if (foundTheft) {
-                console.log("Found theft report:", foundTheft);
-                console.log("Found theft reportType:", foundTheft.reportType);
-                selectReport(foundTheft, 'theft');
-              } else {
-                console.warn("No theft report found for location:", loc);
-              }
-            }}
-          />
-        ))
+          getFilteredTheftLocations().map((location, index) => {
+            const theft = findTheftByLocation(location)
+            if (!theft || !mapRef.current) return null
+            const isSelected = selectedReport?.id === theft.id;
+            const isFaded = !!(selectedLicensePlate && selectedLicensePlate !== theft.info.licensePlate);
+
+            console.log('Rendering theft marker:', theft.id, theft.info.licensePlate, location);
+
+            return (
+              <StolenMarker
+                key={`theft-${theft.id}`}
+                map={mapRef.current}
+                theft={theft}
+                isSelected={isSelected}
+                isFaded={isFaded}
+                onClick={() => selectReport(theft, 'theft')}
+              />
+            )
+          })
         )}
         
         {/* Popup - Only render when we have a selected report and map is ready */}
@@ -813,32 +886,25 @@ export default function MapPage() {
         )}
 
         {(mapReady && mapRef.current && getFilteredSightLocations()) && (
-          getFilteredSightLocations().map((loc, index) => (
-            <SightMarker
-              key={`sighting-${index}`}
-              map = {mapRef.current}
-              feature = {{
-                geometry: {
-                  coordinates: [loc.coordinates.longitude, loc.coordinates.latitude],
-                },
-                properties: {
-                  mag: 0
-                }
-              }}
+          getFilteredSightLocations().map((location, index) => {
+            const sighting = findSightingByLocation(location)
+            if (!sighting || !mapRef.current) return null
+            const isSelected = selectedReport?.id === sighting.id;
+            const isFaded = !!(selectedLicensePlate && selectedLicensePlate !== sighting.info.licensePlate);
+            
+            console.log('Rendering sighting marker:', sighting.id, sighting.info.licensePlate, location);
 
-              onClick={() => {
-                console.log("Clicked on sighting marker at location:", loc);
-                const foundSighting = findSightingByLocation(loc);
-                if (foundSighting) {
-                  console.log("Found sighting report:", foundSighting);
-                  console.log("Found sighting reportType:", foundSighting.reportType);
-                  selectReport(foundSighting, 'sighting');
-                } else {
-                  console.warn("No sighting report found for location:", loc);
-                }
-              }}
-            />
-          ))
+            return (
+              <SightMarker
+                key={`sighting-${sighting.id}`}
+                map={mapRef.current}
+                sighting={sighting}
+                isSelected={isSelected}
+                isFaded={isFaded}
+                onClick={() => selectReport(sighting, 'sighting')}
+              />
+            )
+          })
         )}
         {/* Sidebar */}
         <div className="w-96 bg-white border-l overflow-y-auto">

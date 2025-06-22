@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import mapboxgl, { Map as MapboxMap } from "mapbox-gl";
+import mapboxgl from "mapbox-gl";
 
 interface FeatureGeometry {
   coordinates: [number, number]; // [longitude, latitude]
@@ -15,16 +15,25 @@ type FeatureProps = {
 }
 
 interface MarkerProps {
-  map: MapboxMap;
+  map: mapboxgl.Map;
   feature: FeatureProps;
   onClick?: () => void;
 }
 
-const SightMarker: React.FC<MarkerProps> = ({ map, feature, onClick }) => {
-  const { geometry, properties } = feature;
+interface SightMarkerProps {
+  map: mapboxgl.Map;
+  sighting: any;
+  isSelected: boolean;
+  isFaded: boolean;
+  onClick: () => void;
+}
+
+const SightMarker: React.FC<SightMarkerProps> = ({ map, sighting, isSelected, isFaded, onClick }) => {
   const markerRef = useRef<mapboxgl.Marker | null>(null);
 
   useEffect(() => {
+    const { latitude, longitude } = sighting.location.coordinates;
+
     // Create the marker element
     const markerElement = document.createElement("div");
     markerElement.style.width = '2vw';
@@ -32,18 +41,18 @@ const SightMarker: React.FC<MarkerProps> = ({ map, feature, onClick }) => {
     markerElement.style.backgroundImage = 'url(../sightingsymbol.svg)';
     markerElement.style.backgroundSize = 'cover';
     markerElement.style.cursor = 'pointer';
-    
+    markerElement.style.opacity = isFaded ? '0.3' : '1';
+    markerElement.style.transform = isSelected ? 'scale(1.25)' : 'scale(1)';
+
     // Create the marker
     markerRef.current = new mapboxgl.Marker(markerElement)
-      .setLngLat([geometry.coordinates[0], geometry.coordinates[1]])
+      .setLngLat([longitude, latitude])
       .addTo(map);
 
-    // Add click event listener with improved handling
+    // Add click event listener
     if (onClick) {
       markerElement.addEventListener('click', (e) => {
-        e.preventDefault();
         e.stopPropagation();
-        console.log('Sighting marker clicked');
         onClick();
       });
     }
@@ -53,7 +62,7 @@ const SightMarker: React.FC<MarkerProps> = ({ map, feature, onClick }) => {
         markerRef.current.remove();
       }
     };
-  }, [geometry.coordinates, map, onClick]);
+  }, [map, sighting, isSelected, isFaded, onClick]);
 
   return null;
 };

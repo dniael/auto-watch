@@ -1,30 +1,20 @@
 import { useEffect, useRef } from "react";
-import mapboxgl, { Map as MapboxMap } from "mapbox-gl";
+import mapboxgl from "mapbox-gl";
 
-interface FeatureGeometry {
-  coordinates: [number, number]; // [longitude, latitude]
+interface StolenMarkerProps {
+  map: mapboxgl.Map;
+  theft: any;
+  isSelected: boolean;
+  isFaded: boolean;
+  onClick: () => void;
 }
 
-type FeatureProps ={
-    geometry:{
-        coordinates: [number, number];
-    };
-    properties:{
-        mag: string | number;
-    }
-}
-
-interface MarkerProps {
-  map: MapboxMap;
-  feature: FeatureProps;
-  onClick?: () => void;
-}
-
-const StolenMarker: React.FC<MarkerProps> = ({ map, feature, onClick }) => {
-  const { geometry, properties } = feature;
+const StolenMarker: React.FC<StolenMarkerProps> = ({ map, theft, isSelected, isFaded, onClick }) => {
   const markerRef = useRef<mapboxgl.Marker | null>(null);
 
   useEffect(() => {
+    const { latitude, longitude } = theft.location.coordinates;
+
     // Create the marker element
     const markerElement = document.createElement("div");
     markerElement.style.width = '2vw';
@@ -32,18 +22,18 @@ const StolenMarker: React.FC<MarkerProps> = ({ map, feature, onClick }) => {
     markerElement.style.backgroundImage = 'url(../cartheftsymbol.svg)';
     markerElement.style.backgroundSize = 'cover';
     markerElement.style.cursor = 'pointer';
-    
+    markerElement.style.opacity = isFaded ? '0.3' : '1';
+    markerElement.style.transform = isSelected ? 'scale(1.25)' : 'scale(1)';
+
     // Create the marker
     markerRef.current = new mapboxgl.Marker(markerElement)
-      .setLngLat([geometry.coordinates[0], geometry.coordinates[1]])
+      .setLngLat([longitude, latitude])
       .addTo(map);
 
-    // Add click event listener with improved handling
+    // Add click event listener
     if (onClick) {
       markerElement.addEventListener('click', (e) => {
-        e.preventDefault();
         e.stopPropagation();
-        console.log('Stolen marker clicked');
         onClick();
       });
     }
@@ -53,7 +43,7 @@ const StolenMarker: React.FC<MarkerProps> = ({ map, feature, onClick }) => {
         markerRef.current.remove();
       }
     };
-  }, [geometry.coordinates, map, onClick]);
+  }, [map, theft, isSelected, isFaded, onClick]);
 
   return null;
 };
