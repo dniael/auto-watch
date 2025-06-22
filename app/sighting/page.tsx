@@ -174,6 +174,19 @@ export default function SightingPage() {
     
     setIsSubmitting(true)
 
+    // Combine date and time into a single Date object
+    let combinedDateTime = new Date()
+    if (sightingDate) {
+      if (sightingTime) {
+        // Combine date and time
+        const dateTimeString = `${sightingDate}T${sightingTime}`
+        combinedDateTime = new Date(dateTimeString)
+      } else {
+        // Only date provided, use start of day
+        combinedDateTime = new Date(sightingDate)
+      }
+    }
+
     // Convert uploaded images to BLOB format
     let photoBlob = ""
     if (uploadedFiles.length > 0) {
@@ -192,6 +205,7 @@ export default function SightingPage() {
           },
           info: {
             licensePlate: licensePlate,
+            date: combinedDateTime,
             photo: photoBlob
           },
           location: {
@@ -223,7 +237,8 @@ export default function SightingPage() {
           context: details
         },
         info: {
-           licensePlate: licensePlate,
+          licensePlate: licensePlate,
+          date: combinedDateTime,
           photo: ""
         },
         location: {

@@ -176,7 +176,18 @@ export default function ReportPage() {
     
     setIsSubmitting(true)
 
-    
+    // Combine date and time into a single Date object
+    let combinedDateTime = new Date()
+    if (theftDate) {
+      if (theftTime) {
+        // Combine date and time
+        const dateTimeString = `${theftDate}T${theftTime}`
+        combinedDateTime = new Date(dateTimeString)
+      } else {
+        // Only date provided, use start of day
+        combinedDateTime = new Date(theftDate)
+      }
+    }
 
     // Convert uploaded images to BLOB format
     let photoBlob = ""
@@ -197,7 +208,7 @@ export default function ReportPage() {
           info: {
             brand: make,
             color: color,
-            date: theftDate ? new Date(theftDate) : new Date(),
+            date: combinedDateTime,
             licensePlate: licensePlate,
             model: model,
             plateProvince: state,
@@ -236,7 +247,7 @@ export default function ReportPage() {
         info: {
           brand: make,
           color: color,
-          date: theftDate ? new Date(theftDate) : new Date(),
+          date: combinedDateTime,
           licensePlate: licensePlate,
           model: model,
           plateProvince: state,

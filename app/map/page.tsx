@@ -14,7 +14,7 @@ import "mapbox-gl/dist/mapbox-gl.css"
 import StolenMarker from "./stolen-marker"
 import SightMarker from "./sighting-marker"
 import LocationMarker from "./location-marker"
-import { collection, getDocs } from "firebase/firestore"
+import { collection, getDocs, Timestamp } from "firebase/firestore"
 import { theftCollection , sightingCollection } from "@/lib/controller"
 import {
   DropdownMenu,
@@ -31,12 +31,21 @@ mapboxgl.accessToken = "pk.eyJ1IjoicGxhdGludW1jb3AiLCJhIjoiY21jNXU4bmoyMHR3ZjJsb
 const formatTimeAgo = (timestamp: any): string => {
   let timestampMs: number;
   
-  // Handle Firestore Timestamp object
-  if (timestamp && typeof timestamp === 'object' && timestamp.seconds !== undefined) {
-    // Convert Firestore Timestamp to milliseconds
+  // Handle different date formats from Firestore
+  if (timestamp instanceof Timestamp) {
+    // Firestore Timestamp object
+    timestampMs = timestamp.toDate().getTime();
+  } else if (timestamp?.seconds) {
+    // Firestore Timestamp object with seconds
     timestampMs = timestamp.seconds * 1000;
+  } else if (timestamp?.toDate) {
+    // Firestore Timestamp object with toDate method
+    timestampMs = timestamp.toDate().getTime();
+  } else if (timestamp instanceof Date) {
+    // JavaScript Date object
+    timestampMs = timestamp.getTime();
   } else if (typeof timestamp === 'number') {
-    // Handle regular number (milliseconds)
+    // Already in milliseconds
     timestampMs = timestamp;
   } else {
     console.warn('Unknown timestamp format:', timestamp);
@@ -92,6 +101,33 @@ export default function MapPage() {
       const querySnapshot2 = await getDocs(sightingCollection);
       const thefts = querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
       const sights = querySnapshot2.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      
+      console.log("Raw thefts data from Firestore:", thefts);
+      console.log("Raw sights data from Firestore:", sights);
+      
+      // Log detailed info about date fields
+      thefts.forEach((theft: any, index) => {
+        console.log(`Theft ${index} date info:`, {
+          date: theft.info?.date,
+          dateType: typeof theft.info?.date,
+          hasSeconds: !!theft.info?.date?.seconds,
+          hasToDate: !!theft.info?.date?.toDate,
+          isDate: theft.info?.date instanceof Date,
+          dateKeys: theft.info?.date ? Object.keys(theft.info.date) : 'no date'
+        });
+      });
+      
+      sights.forEach((sighting: any, index) => {
+        console.log(`Sighting ${index} date info:`, {
+          date: sighting.info?.date,
+          dateType: typeof sighting.info?.date,
+          hasSeconds: !!sighting.info?.date?.seconds,
+          hasToDate: !!sighting.info?.date?.toDate,
+          isDate: sighting.info?.date instanceof Date,
+          dateKeys: sighting.info?.date ? Object.keys(sighting.info.date) : 'no date'
+        });
+      });
+      
       setTheftsData(thefts);
       setSightings(sights);
       setTheftsLocations(thefts.map((theft: any) => theft.location));
@@ -154,12 +190,35 @@ export default function MapPage() {
     // Apply search filter
     if (searchQuery) {
       filtered = filtered.filter((sighting: any) => 
-        fuzzySearch(searchQuery, sighting.info?.licemsePlate || '') // Note: typo in original data
+        fuzzySearch(searchQuery, sighting.info?.licensePlate || '')
       );
     }
     
     // Apply sorting
     return sortData(filtered);
+  };
+
+  // Get unified sorted list of all reports (thefts + sightings)
+  const getAllFilteredReports = () => {
+    let allReports: any[] = [];
+    
+    // Add thefts with type indicator
+    const filteredThefts = getFilteredThefts().map((theft: any) => ({
+      ...theft,
+      reportType: 'theft'
+    }));
+    
+    // Add sightings with type indicator
+    const filteredSightings = getFilteredSightings().map((sighting: any) => ({
+      ...sighting,
+      reportType: 'sighting'
+    }));
+    
+    // Combine both arrays
+    allReports = [...filteredThefts, ...filteredSightings];
+    
+    // Sort the combined array
+    return sortData(allReports);
   };
 
   const getFilteredTheftLocations = () => {
@@ -184,7 +243,7 @@ export default function MapPage() {
     
     if (searchQuery) {
       const filteredSightings = sightings.filter((sighting: any) => 
-        fuzzySearch(searchQuery, sighting.info?.licemsePlate || '') // Note: typo in original data
+        fuzzySearch(searchQuery, sighting.info?.licensePlate || '')
       );
       return filteredSightings.map((sighting: any) => sighting.location);
     }
@@ -221,24 +280,76 @@ export default function MapPage() {
   const sortData = (data: any[]): any[] => {
     if (!data.length) return data;
 
+    console.log('Sorting data:', { sortBy, sortOrder, dataLength: data.length });
+    console.log('Sample data item:', data[0]);
+
     const sorted = [...data].sort((a, b) => {
       let comparison = 0;
 
       switch (sortBy) {
         case "time":
-          const timeA = a.info?.date?.seconds || 0;
-          const timeB = b.info?.date?.seconds || 0;
+          // Handle different date formats from Firestore
+          let timeA = 0;
+          let timeB = 0;
+          
+          console.log('Sorting by time - Item A date:', a.info?.date);
+          console.log('Sorting by time - Item B date:', b.info?.date);
+          
+          // Handle Firestore Timestamp objects
+          if (a.info?.date instanceof Timestamp) {
+            timeA = a.info.date.toDate().getTime(); // Convert Firestore Timestamp to milliseconds
+            console.log('Item A: Using Firestore Timestamp, timeA:', timeA);
+          } else if (a.info?.date?.seconds) {
+            timeA = a.info.date.seconds * 1000; // Convert to milliseconds
+            console.log('Item A: Using seconds format, timeA:', timeA);
+          } else if (a.info?.date?.toDate) {
+            timeA = a.info.date.toDate().getTime(); // Convert Firestore Timestamp to milliseconds
+            console.log('Item A: Using toDate format, timeA:', timeA);
+          } else if (a.info?.date instanceof Date) {
+            timeA = a.info.date.getTime(); // JavaScript Date object
+            console.log('Item A: Using Date object, timeA:', timeA);
+          } else if (typeof a.info?.date === 'number') {
+            timeA = a.info.date; // Already in milliseconds
+            console.log('Item A: Using number format, timeA:', timeA);
+          } else {
+            console.log('Item A: No valid date found, using 0');
+          }
+          
+          if (b.info?.date instanceof Timestamp) {
+            timeB = b.info.date.toDate().getTime(); // Convert Firestore Timestamp to milliseconds
+            console.log('Item B: Using Firestore Timestamp, timeB:', timeB);
+          } else if (b.info?.date?.seconds) {
+            timeB = b.info.date.seconds * 1000; // Convert to milliseconds
+            console.log('Item B: Using seconds format, timeB:', timeB);
+          } else if (b.info?.date?.toDate) {
+            timeB = b.info.date.toDate().getTime(); // Convert Firestore Timestamp to milliseconds
+            console.log('Item B: Using toDate format, timeB:', timeB);
+          } else if (b.info?.date instanceof Date) {
+            timeB = b.info.date.getTime(); // JavaScript Date object
+            console.log('Item B: Using Date object, timeB:', timeB);
+          } else if (typeof b.info?.date === 'number') {
+            timeB = b.info.date; // Already in milliseconds
+            console.log('Item B: Using number format, timeB:', timeB);
+          } else {
+            console.log('Item B: No valid date found, using 0');
+          }
+          
           comparison = timeA - timeB;
+          console.log('Time comparison:', { timeA, timeB, comparison });
           break;
 
         case "alphabetical":
-          const plateA = (a.info?.licensePlate || a.info?.licemsePlate || "").toLowerCase();
-          const plateB = (b.info?.licensePlate || b.info?.licemsePlate || "").toLowerCase();
+          const plateA = (a.info?.licensePlate || "").toLowerCase();
+          const plateB = (b.info?.licensePlate || "").toLowerCase();
           comparison = plateA.localeCompare(plateB);
+          console.log('Alphabetical comparison:', { plateA, plateB, comparison });
           break;
 
         case "distance":
-          if (!currentLocation) return 0;
+          if (!currentLocation) {
+            console.log('No current location for distance sorting');
+            return 0;
+          }
           const [userLng, userLat] = currentLocation;
           
           const distA = calculateDistance(
@@ -252,12 +363,16 @@ export default function MapPage() {
             b.location.coordinates.longitude
           );
           comparison = distA - distB;
+          console.log('Distance comparison:', { distA, distB, comparison });
           break;
       }
 
-      return sortOrder === "asc" ? comparison : -comparison;
+      const finalComparison = sortOrder === "asc" ? comparison : -comparison;
+      console.log('Final comparison:', { comparison, sortOrder, finalComparison });
+      return finalComparison;
     });
 
+    console.log('Sorted data:', sorted);
     return sorted;
   };
 
@@ -635,7 +750,7 @@ export default function MapPage() {
                 <h3 className="font-semibold text-gray-900">Recent Reports</h3>
                 {searchQuery && (
                   <span className="text-xs text-gray-500">
-                    {getFilteredThefts().length + getFilteredSightings().length} results
+                    {getAllFilteredReports().length} results
                   </span>
                 )}
               </div>
@@ -659,8 +774,8 @@ export default function MapPage() {
                 </div>
               ) : (
                 <>
-                  {/* Theft Reports */}
-                  {getFilteredThefts().map((data, index) => (
+                  {/* All Reports */}
+                  {getAllFilteredReports().map((data, index) => (
                     <Card
                       key={index}
                       className={`cursor-pointer transition-all duration-200 relative group hover:shadow-md ${
@@ -671,12 +786,21 @@ export default function MapPage() {
                       <CardHeader className="pb-2">
                         <div className="flex items-center justify-between">
                           <Badge 
-                            variant="destructive"
-                            className="bg-red-600"
+                            variant={data.reportType === 'theft' ? "destructive" : "secondary"}
+                            className={data.reportType === 'theft' ? "bg-red-600" : "bg-yellow-600"}
                           >
                             <>
-                              <AlertTriangle className="h-3 w-3 mr-1" />
-                              Theft
+                              {data.reportType === 'theft' ? (
+                                <>
+                                  <AlertTriangle className="h-3 w-3 mr-1" />
+                                  Theft
+                                </>
+                              ) : (
+                                <>
+                                  <Eye className="h-3 w-3 mr-1" />
+                                  Sighting
+                                </>
+                              )}
                             </>
                           </Badge>
                           <span className="text-xs text-gray-500">{formatTimeAgo(data.info.date)}</span> 
@@ -684,9 +808,19 @@ export default function MapPage() {
                       </CardHeader>
                       <CardContent className="pt-0">
                         <>
-                          <div className="font-semibold">{data.info.licensePlate}</div>
+                          <div className="font-semibold">
+                            {data.reportType === 'sighting' ? 'Sighting: ' : ''}{data.info.licensePlate}
+                          </div>
                           <div className="text-sm text-gray-600">
-                            {data.info.year} {data.info.color} {data.info.brand} {data.info.model}
+                            {data.reportType === 'theft' ? (
+                              <>
+                                {data.info.year} {data.info.color} {data.info.brand} {data.info.model}
+                              </>
+                            ) : (
+                              <>
+                                Reported by {data.contact.name}
+                              </>
+                            )}
                           </div>
                           <div className="text-sm text-gray-500 flex items-center gap-1 mt-1">
                             <MapPin className="h-3 w-3" />
@@ -695,69 +829,35 @@ export default function MapPage() {
                         </>
                       </CardContent>
 
-                      <div className="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 rounded-lg flex items-center justify-center">
-                        <Button
-                          size="sm"
-                          className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg transform scale-95 group-hover:scale-100 transition-transform duration-200"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            // Navigate to sighting page with vehicle data
-                            const vehicleData = encodeURIComponent(
-                              JSON.stringify({
-                                licensePlate: data.info.licensePlate,
-                                make: data.info.brand,
-                                model: data.info.model,
-                                color: data.info.color,
-                                year: data.info.year,
-                              }),
-                            )
-                            window.location.href = `/sighting?vehicle=${vehicleData}`
-                          }}
-                        >
-                          <Eye className="h-4 w-4 mr-1" />I Saw This Car
-                        </Button>
-                      </div>
-                    </Card>
-                  ))}
-
-                  {/* Sighting Reports */}
-                  {getFilteredSightings().map((data, index) => (
-                    <Card
-                      key={index}
-                      className={`cursor-pointer transition-all duration-200 relative group hover:shadow-md ${
-                        selectedReport?.id === data.id ? "ring-2 ring-blue-500" : ""
-                      }`}
-                      onClick={() => setSelectedReport(data)}
-                    >
-                      <CardHeader className="pb-2">
-                        <div className="flex items-center justify-between">
-                          <Badge
-                            variant="secondary"
-                            className="bg-yellow-600"
+                      {data.reportType === 'theft' && (
+                        <div className="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 rounded-lg flex items-center justify-center">
+                          <Button
+                            size="sm"
+                            className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg transform scale-95 group-hover:scale-100 transition-transform duration-200"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              // Navigate to sighting page with vehicle data
+                              const vehicleData = encodeURIComponent(
+                                JSON.stringify({
+                                  licensePlate: data.info.licensePlate,
+                                  make: data.info.brand,
+                                  model: data.info.model,
+                                  color: data.info.color,
+                                  year: data.info.year,
+                                }),
+                              )
+                              window.location.href = `/sighting?vehicle=${vehicleData}`
+                            }}
                           >
-                            <>
-                              <Eye className="h-3 w-3 mr-1" />
-                              Sighting
-                            </>
-                          </Badge>
-                          <span className="text-xs text-gray-500">{formatTimeAgo(data.info.date)}</span> 
+                            <Eye className="h-4 w-4 mr-1" />I Saw This Car
+                          </Button>
                         </div>
-                      </CardHeader>
-                      <CardContent className="pt-0">
-                        <>
-                          <div className="font-semibold">Sighting: {data.info.licemsePlate}</div>
-                          <div className="text-sm text-gray-600">Reported by {data.contact.name}</div>
-                          <div className="text-sm text-gray-500 flex items-center gap-1 mt-1">
-                            <MapPin className="h-3 w-3" />
-                            {data.location.address}
-                          </div>
-                        </>
-                      </CardContent>
+                      )}
                     </Card>
                   ))}
 
                   {/* No results message */}
-                  {!isLoading && getFilteredThefts().length === 0 && getFilteredSightings().length === 0 && (
+                  {!isLoading && getAllFilteredReports().length === 0 && (
                     <div className="text-center py-8">
                       <div className="text-gray-400 text-sm">
                         {searchQuery ? "No reports found matching your search." : "No reports available."}

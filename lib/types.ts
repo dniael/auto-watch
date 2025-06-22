@@ -33,6 +33,7 @@ export interface AddSightingType {
   info: {
     photo: string
     licensePlate: string
+    date: Date
   }
   location: {
     address: string
