@@ -13,7 +13,7 @@ import mapboxgl from "mapbox-gl"
 import "mapbox-gl/dist/mapbox-gl.css"
 import Marker from "./marker"
 import LocationMarker from "./location-marker"
-import { collection, doc, getDocs } from "firebase/firestore"
+import { collection, getDocs } from "firebase/firestore"
 import { theftCollection } from "@/lib/controller"
 
 

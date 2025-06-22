@@ -23,3 +23,21 @@ export interface AddTheftType {
     }
   }
 }
+
+export interface AddSightingType {
+  contact: {
+    name: string
+    phone: string
+    context: string
+  }
+  info: {
+    photo: string
+  }
+  location: {
+    address: string
+    coordinates: {
+      latitude: number
+      longitude: number
+    }
+  }
+}

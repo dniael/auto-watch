@@ -10,14 +10,39 @@ import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { ArrowLeft, MapPin, Camera, Eye, AlertTriangle } from "lucide-react"
 import Link from "next/link"
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect, useRef } from "react"
 import { useSearchParams } from "next/navigation"
+import { addSightingMarker } from "@/lib/controller"
+import { useRouter } from "next/navigation"
+
+import { AddressAutofill } from '@mapbox/search-js-react';
+
+const AddressAutofillAny = AddressAutofill as any;
 
 export default function SightingPage() {
+  const router = useRouter()
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [address, setAddress] = useState("")
+  const [addressError, setAddressError] = useState("")
+
+  // Form field states
+  const [licensePlate, setLicensePlate] = useState("")
+  const [sightingDate, setSightingDate] = useState("")
+  const [sightingTime, setSightingTime] = useState("")
+  const [make, setMake] = useState("")
+  const [model, setModel] = useState("")
+  const [color, setColor] = useState("")
+  const [year, setYear] = useState("")
+  const [details, setDetails] = useState("")
+  const [contactName, setContactName] = useState("")
+  const [contactPhone, setContactPhone] = useState("")
+  const [uploadedFiles, setUploadedFiles] = useState<File[]>([])
 
   const searchParams = useSearchParams()
+
+  // Ref for debouncing
+  const geocodeTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Use useMemo to parse vehicle data only when search params change
   const vehicleData = useMemo(() => {
@@ -33,6 +58,81 @@ export default function SightingPage() {
     return null
   }, [searchParams])
 
+  // Pre-fill form fields with vehicle data from URL parameters
+  useEffect(() => {
+    if (vehicleData) {
+      setLicensePlate(vehicleData.licensePlate || "")
+      setMake(vehicleData.make || "")
+      setModel(vehicleData.model || "")
+      setColor(vehicleData.color || "")
+      setYear(vehicleData.year?.toString() || "")
+    }
+  }, [vehicleData])
+
+  // Forward geocoding function
+  const geocodeAddress = async (searchText: string) => {
+    if (!searchText.trim()) {
+      setAddressError("")
+      return
+    }
+
+    const accessToken = 'pk.eyJ1IjoicGxhdGludW1jb3AiLCJhIjoiY21jNXU4bmoyMHR3ZjJsbzR0OWxpNjFkYSJ9.OHvYs3NyOpLGSMj1CMI1xg'
+    const encodedSearchText = encodeURIComponent(searchText)
+    const url = `https://api.mapbox.com/search/geocode/v6/forward?q=${encodedSearchText}&access_token=${accessToken}`
+
+    try {
+      const response = await fetch(url)
+      const data = await response.json()
+
+      if (data.features && data.features.length > 0) {
+        const coordinates = data.features[0].geometry.coordinates
+        const [longitude, latitude] = coordinates
+        
+        console.log('Geocoded coordinates:', { latitude, longitude })
+        
+        // Update the location state with the geocoded coordinates
+        setLocation({ lat: latitude, lng: longitude })
+        setAddressError("") // Clear any previous error
+      } else {
+        console.log('No coordinates found for address:', searchText)
+        setLocation(null)
+        setAddressError("Invalid address. Please enter a valid address or use current location.")
+      }
+    } catch (error) {
+      console.error('Error geocoding address:', error)
+      setLocation(null)
+      setAddressError("Error validating address. Please try again or use current location.")
+    }
+  }
+
+  // Handle address input change with debounced geocoding
+  const handleAddressChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newAddress = e.target.value
+    setAddress(newAddress)
+    setAddressError("") // Clear error when user starts typing
+    
+    // Clear existing timeout
+    if (geocodeTimeoutRef.current) {
+      clearTimeout(geocodeTimeoutRef.current)
+    }
+    
+    // Set new timeout for geocoding
+    geocodeTimeoutRef.current = setTimeout(() => {
+      if (newAddress.trim()) {
+        geocodeAddress(newAddress)
+      }
+    }, 1000) // Wait 1 second after user stops typing
+  }
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (geocodeTimeoutRef.current) {
+        clearTimeout(geocodeTimeoutRef.current)
+      }
+    }
+  }, [])
+
   const getCurrentLocation = () => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -41,23 +141,107 @@ export default function SightingPage() {
             lat: position.coords.latitude,
             lng: position.coords.longitude,
           })
+          setAddressError("") // Clear error when using current location
         },
         (error) => {
           console.error("Error getting location:", error)
+          setAddressError("Could not get current location. Please enter a valid address.")
         },
       )
     }
   }
 
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (files) {
+      const fileArray = Array.from(files)
+      setUploadedFiles(prev => [...prev, ...fileArray])
+    }
+  }
+
+  const removeFile = (index: number) => {
+    setUploadedFiles(prev => prev.filter((_, i) => i !== index))
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    // Validate that we have coordinates (either from geocoding or current location)
+    if (!location) {
+      setAddressError("Please enter a valid address or use current location.")
+      return
+    }
+    
     setIsSubmitting(true)
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 2000))
-
-    alert("Sighting reported successfully! The owner has been notified.")
-    setIsSubmitting(false)
+    // Convert uploaded images to BLOB format
+    let photoBlob = ""
+    if (uploadedFiles.length > 0) {
+      const image = uploadedFiles[0] // Use the first uploaded file
+      const reader = new FileReader()
+      
+      reader.onloadend = async () => {
+        photoBlob = reader.result as string
+        
+        // Create the sighting report data with BLOB image
+        const sightingData = {
+          contact: {
+            name: contactName,
+            phone: contactPhone,
+            context: details
+          },
+          info: {
+            photo: photoBlob
+          },
+          location: {
+            address: address,
+            coordinates: {
+              latitude: location?.lat || 0,
+              longitude: location?.lng || 0
+            }
+          }
+        }
+        
+        // Submit to Firebase
+        addSightingMarker(sightingData)
+        console.log('Saved sighting report with photo.')
+        
+        // Redirect to map page
+        alert("Sighting reported successfully! The owner has been notified.")
+        router.push('/map')
+        setIsSubmitting(false)
+      }
+      
+      reader.readAsDataURL(image)
+    } else {
+      // No image uploaded, submit without photo
+      const sightingData = {
+        contact: {
+          name: contactName,
+          phone: contactPhone,
+          context: details
+        },
+        info: {
+          photo: ""
+        },
+        location: {
+          address: address,
+          coordinates: {
+            latitude: location?.lat || 0,
+            longitude: location?.lng || 0
+          }
+        }
+      }
+      
+      // Submit to Firebase
+      addSightingMarker(sightingData)
+      console.log('Saved sighting report without photo.')
+      
+      // Redirect to map page
+      alert("Sighting reported successfully! The owner has been notified.")
+      router.push('/map')
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -112,7 +296,8 @@ export default function SightingPage() {
                   placeholder="ABC-1234"
                   required
                   className="text-lg font-mono"
-                  defaultValue={vehicleData?.licensePlate || ""}
+                  value={licensePlate}
+                  onChange={(e) => setLicensePlate(e.target.value)}
                 />
                 <p className="text-sm text-gray-500">Enter the license plate exactly as you saw it</p>
               </div>
@@ -121,12 +306,28 @@ export default function SightingPage() {
               <div className="space-y-4">
                 <Label>Sighting Location *</Label>
                 <div className="flex gap-2">
-                  <Input placeholder="Address, intersection, or landmark" className="flex-1" />
+                  <AddressAutofillAny
+                    accessToken='pk.eyJ1IjoicGxhdGludW1jb3AiLCJhIjoiY21jNXU4bmoyMHR3ZjJsbzR0OWxpNjFkYSJ9.OHvYs3NyOpLGSMj1CMI1xg'
+                  >
+                    <Input 
+                      placeholder="Address, intersection, or landmark" 
+                      className="flex-1" 
+                      value={address} 
+                      onChange={handleAddressChange}
+                      autoComplete="address-line1"
+                    />
+                  </AddressAutofillAny>
                   <Button type="button" variant="outline" onClick={getCurrentLocation}>
                     <MapPin className="h-4 w-4 mr-2" />
                     Current
                   </Button>
                 </div>
+                {addressError && (
+                  <p className="text-sm text-red-600 flex items-center gap-1">
+                    <AlertTriangle className="h-4 w-4" />
+                    {addressError}
+                  </p>
+                )}
                 {location && (
                   <Badge variant="secondary" className="w-fit">
                     <MapPin className="h-3 w-3 mr-1" />
@@ -139,11 +340,21 @@ export default function SightingPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="sighting-date">Date Seen</Label>
-                  <Input id="sighting-date" type="date" defaultValue={new Date().toISOString().split("T")[0]} />
+                  <Input 
+                    id="sighting-date" 
+                    type="date" 
+                    value={sightingDate}
+                    onChange={(e) => setSightingDate(e.target.value)}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="sighting-time">Time Seen</Label>
-                  <Input id="sighting-time" type="time" />
+                  <Input 
+                    id="sighting-time" 
+                    type="time" 
+                    value={sightingTime}
+                    onChange={(e) => setSightingTime(e.target.value)}
+                  />
                 </div>
               </div>
 
@@ -162,12 +373,29 @@ export default function SightingPage() {
                   </div>
                 )}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Input placeholder="Make (Toyota, Honda...)" defaultValue={vehicleData?.make || ""} />
-                  <Input placeholder="Model (Camry, Civic...)" defaultValue={vehicleData?.model || ""} />
+                  <Input 
+                    placeholder="Make (Toyota, Honda...)" 
+                    value={make}
+                    onChange={(e) => setMake(e.target.value)}
+                  />
+                  <Input 
+                    placeholder="Model (Camry, Civic...)" 
+                    value={model}
+                    onChange={(e) => setModel(e.target.value)}
+                  />
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Input placeholder="Color" defaultValue={vehicleData?.color || ""} />
-                  <Input placeholder="Year" type="number" defaultValue={vehicleData?.year || ""} />
+                  <Input 
+                    placeholder="Color" 
+                    value={color}
+                    onChange={(e) => setColor(e.target.value)}
+                  />
+                  <Input 
+                    placeholder="Year" 
+                    type="number" 
+                    value={year}
+                    onChange={(e) => setYear(e.target.value)}
+                  />
                 </div>
               </div>
 
@@ -180,10 +408,56 @@ export default function SightingPage() {
                   <p className="text-sm text-gray-500 mb-4">
                     Photos greatly increase the chances of positive identification
                   </p>
-                  <Button type="button" variant="outline">
-                    Choose Photo
+                  <input
+                    type="file"
+                    multiple
+                    accept="image/*,video/*"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                    id="file-upload"
+                  />
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    className="mt-4"
+                    onClick={() => document.getElementById('file-upload')?.click()}
+                  >
+                    Choose Files
                   </Button>
                 </div>
+                
+                {/* Display uploaded files */}
+                {uploadedFiles.length > 0 && (
+                  <div className="space-y-2">
+                    <Label>Uploaded Files:</Label>
+                    <div className="space-y-2">
+                      {uploadedFiles.map((file, index) => (
+                        <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded border">
+                          <div className="flex items-center gap-2">
+                            {file.type.startsWith('image/') ? (
+                              <Camera className="h-4 w-4 text-gray-500" />
+                            ) : (
+                              <Camera className="h-4 w-4 text-gray-500" />
+                            )}
+                            <span className="text-sm">{file.name}</span>
+                            <span className="text-xs text-gray-500">
+                              ({(file.size / 1024 / 1024).toFixed(2)} MB)
+                            </span>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeFile(index)}
+                            className="text-red-500 hover:text-red-700"
+                          >
+                            Remove
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Additional Details */}
@@ -193,6 +467,8 @@ export default function SightingPage() {
                   id="details"
                   placeholder="Direction of travel, number of occupants, condition of vehicle, or any other relevant details..."
                   rows={4}
+                  value={details}
+                  onChange={(e) => setDetails(e.target.value)}
                 />
               </div>
 
@@ -200,8 +476,17 @@ export default function SightingPage() {
               <div className="space-y-4">
                 <Label>Contact Information (Optional)</Label>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Input placeholder="Your name" />
-                  <Input placeholder="Phone number" type="tel" />
+                  <Input 
+                    placeholder="Your name" 
+                    value={contactName}
+                    onChange={(e) => setContactName(e.target.value)}
+                  />
+                  <Input 
+                    placeholder="Phone number" 
+                    type="tel" 
+                    value={contactPhone}
+                    onChange={(e) => setContactPhone(e.target.value)}
+                  />
                 </div>
                 <p className="text-sm text-gray-500">
                   In case law enforcement needs to follow up with you about this sighting.
