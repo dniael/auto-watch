@@ -12,10 +12,54 @@ import { Badge } from "@/components/ui/badge"
 import { ArrowLeft, MapPin, Camera, Video, AlertTriangle } from "lucide-react"
 import Link from "next/link"
 import { useState } from "react"
+import { addTheftMarker } from "@/lib/controller"
+
+// Firebase Database Type Definition
+type TheftReport = {
+  Contact: {
+    Name: string
+    Phone: string
+    Context: string
+  }
+  Info: {
+    Brand: string
+    Color: string
+    Date: Date
+    LicensePlate: string
+    Model: string
+    PlateProvince: string
+    Type: string
+    Year: number
+    Photo: string
+  }
+  location: {
+    Address: string
+    Coordinates: {
+      latitude: number
+      longitude: number
+    }
+  }
+}
 
 export default function ReportPage() {
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // Form field states
+  const [licensePlate, setLicensePlate] = useState("")
+  const [state, setState] = useState("")
+  const [make, setMake] = useState("")
+  const [model, setModel] = useState("")
+  const [year, setYear] = useState("")
+  const [color, setColor] = useState("")
+  const [vehicleType, setVehicleType] = useState("")
+  const [address, setAddress] = useState("")
+  const [theftDate, setTheftDate] = useState("")
+  const [theftTime, setTheftTime] = useState("")
+  const [details, setDetails] = useState("")
+  const [contactName, setContactName] = useState("")
+  const [contactPhone, setContactPhone] = useState("")
+  const [uploadedFiles, setUploadedFiles] = useState<File[]>([])
 
   const getCurrentLocation = () => {
     if (navigator.geolocation) {
@@ -33,16 +77,106 @@ export default function ReportPage() {
     }
   }
 
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (files) {
+      const fileArray = Array.from(files)
+      setUploadedFiles(prev => [...prev, ...fileArray])
+    }
+  }
+
+  const removeFile = (index: number) => {
+    setUploadedFiles(prev => prev.filter((_, i) => i !== index))
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSubmitting(true)
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 2000))
+    
 
-    // Redirect to success page or show success message
-    alert("Report submitted successfully! The community has been alerted.")
-    setIsSubmitting(false)
+    // Convert uploaded images to BLOB format
+    let photoBlob = ""
+    if (uploadedFiles.length > 0) {
+      const image = uploadedFiles[0] // Use the first uploaded file
+      const reader = new FileReader()
+      
+      reader.onloadend = async () => {
+        photoBlob = reader.result as string
+        
+        // Create the theft report data with BLOB image
+        const theftData = {
+          contact: {
+            name: contactName,
+            phone: contactPhone,
+            context: details
+          },
+          info: {
+            brand: make,
+            color: color,
+            date: theftDate ? new Date(theftDate) : new Date(),
+            licensePlate: licensePlate,
+            model: model,
+            plateProvince: state,
+            type: vehicleType,
+            year: year ? parseInt(year) : 0,
+            photo: photoBlob
+          },
+          location: {
+            address: address,
+            coordinates: {
+              latitude: location?.lat || 0,
+              longitude: location?.lng || 0
+            }
+          }
+        }
+        
+        // Submit to Firebase
+        addTheftMarker(theftData)
+        console.log('Saved theft report with photo.')
+        
+        // Redirect to success page or show success message
+        alert("Report submitted successfully! The community has been alerted.")
+        setIsSubmitting(false)
+      }
+      
+      reader.readAsDataURL(image)
+    } else {
+      // No image uploaded, submit without photo
+      const theftData = {
+        contact: {
+          name: contactName,
+          phone: contactPhone,
+          context: details
+        },
+        info: {
+          brand: make,
+          color: color,
+          date: theftDate ? new Date(theftDate) : new Date(),
+          licensePlate: licensePlate,
+          model: model,
+          plateProvince: state,
+          type: vehicleType,
+          year: year ? parseInt(year) : 0,
+          photo: ""
+        },
+        location: {
+          address: address,
+          coordinates: {
+            latitude: location?.lat || 0,
+            longitude: location?.lng || 0
+          }
+        }
+      }
+      
+      // Submit to Firebase
+      addTheftMarker(theftData)
+      console.log('Saved theft report without photo.')
+      
+      // Redirect to success page or show success message
+      alert("Report submitted successfully! The community has been alerted.")
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -80,11 +214,17 @@ export default function ReportPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="license-plate">License Plate *</Label>
-                  <Input id="license-plate" placeholder="ABC-1234" required />
+                  <Input 
+                    id="license-plate" 
+                    placeholder="ABC-1234" 
+                    required 
+                    value={licensePlate}
+                    onChange={(e) => setLicensePlate(e.target.value)}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="state">State/Province</Label>
-                  <Select>
+                  <Select value={state} onValueChange={setState}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select state" />
                     </SelectTrigger>
@@ -101,22 +241,40 @@ export default function ReportPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="make">Make *</Label>
-                  <Input id="make" placeholder="Toyota, Honda, Ford..." required />
+                  <Input 
+                    id="make" 
+                    placeholder="Toyota, Honda, Ford..." 
+                    required 
+                    value={make}
+                    onChange={(e) => setMake(e.target.value)}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="model">Model *</Label>
-                  <Input id="model" placeholder="Camry, Civic, F-150..." required />
+                  <Input 
+                    id="model" 
+                    placeholder="Camry, Civic, F-150..." 
+                    required 
+                    value={model}
+                    onChange={(e) => setModel(e.target.value)}
+                  />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="year">Year</Label>
-                  <Input id="year" placeholder="2020" type="number" />
+                  <Input 
+                    id="year" 
+                    placeholder="2020" 
+                    type="number" 
+                    value={year}
+                    onChange={(e) => setYear(e.target.value)}
+                  />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="color">Color *</Label>
-                  <Select>
+                  <Label htmlFor="color">Color</Label>
+                  <Select value={color} onValueChange={setColor}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select color" />
                     </SelectTrigger>
@@ -133,7 +291,7 @@ export default function ReportPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="type">Vehicle Type</Label>
-                  <Select>
+                  <Select value={vehicleType} onValueChange={setVehicleType}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select type" />
                     </SelectTrigger>
@@ -153,7 +311,13 @@ export default function ReportPage() {
               <div className="space-y-4">
                 <Label>Last Known Location *</Label>
                 <div className="flex gap-2">
-                  <Input placeholder="Address or intersection" className="flex-1" />
+                  <Input 
+                    placeholder="Address or intersection" 
+                    className="flex-1" 
+                    required
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
+                  />
                   <Button type="button" variant="outline" onClick={getCurrentLocation}>
                     <MapPin className="h-4 w-4 mr-2" />
                     Use Current
@@ -171,11 +335,21 @@ export default function ReportPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="theft-date">Date Stolen</Label>
-                  <Input id="theft-date" type="date" />
+                  <Input 
+                    id="theft-date" 
+                    type="date" 
+                    value={theftDate}
+                    onChange={(e) => setTheftDate(e.target.value)}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="theft-time">Approximate Time</Label>
-                  <Input id="theft-time" type="time" />
+                  <Input 
+                    id="theft-time" 
+                    type="time" 
+                    value={theftTime}
+                    onChange={(e) => setTheftTime(e.target.value)}
+                  />
                 </div>
               </div>
 
@@ -189,10 +363,56 @@ export default function ReportPage() {
                   </div>
                   <p className="text-gray-600 mb-2">Upload photos or video of your vehicle</p>
                   <p className="text-sm text-gray-500">Drag and drop files here, or click to browse</p>
-                  <Button type="button" variant="outline" className="mt-4">
+                  <input
+                    type="file"
+                    multiple
+                    accept="image/*,video/*"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                    id="file-upload"
+                  />
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    className="mt-4"
+                    onClick={() => document.getElementById('file-upload')?.click()}
+                  >
                     Choose Files
                   </Button>
                 </div>
+                
+                {/* Display uploaded files */}
+                {uploadedFiles.length > 0 && (
+                  <div className="space-y-2">
+                    <Label>Uploaded Files:</Label>
+                    <div className="space-y-2">
+                      {uploadedFiles.map((file, index) => (
+                        <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded border">
+                          <div className="flex items-center gap-2">
+                            {file.type.startsWith('image/') ? (
+                              <Camera className="h-4 w-4 text-gray-500" />
+                            ) : (
+                              <Video className="h-4 w-4 text-gray-500" />
+                            )}
+                            <span className="text-sm">{file.name}</span>
+                            <span className="text-xs text-gray-500">
+                              ({(file.size / 1024 / 1024).toFixed(2)} MB)
+                            </span>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeFile(index)}
+                            className="text-red-500 hover:text-red-700"
+                          >
+                            Remove
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Additional Details */}
@@ -202,6 +422,8 @@ export default function ReportPage() {
                   id="details"
                   placeholder="Any distinctive features, damage, modifications, or circumstances of the theft..."
                   rows={4}
+                  value={details}
+                  onChange={(e) => setDetails(e.target.value)}
                 />
               </div>
 
@@ -209,8 +431,17 @@ export default function ReportPage() {
               <div className="space-y-4">
                 <Label>Contact Information (Optional)</Label>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Input placeholder="Your name" />
-                  <Input placeholder="Phone number" type="tel" />
+                  <Input 
+                    placeholder="Your name" 
+                    value={contactName}
+                    onChange={(e) => setContactName(e.target.value)}
+                  />
+                  <Input 
+                    placeholder="Phone number" 
+                    type="tel" 
+                    value={contactPhone}
+                    onChange={(e) => setContactPhone(e.target.value)}
+                  />
                 </div>
                 <p className="text-sm text-gray-500">
                   Providing contact info helps law enforcement and community members reach you with sightings.
