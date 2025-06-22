@@ -1,6 +1,5 @@
 import { useEffect, useRef } from "react";
 import mapboxgl, { Map as MapboxMap } from "mapbox-gl";
-import {createPortal} from "react-dom"
 
 interface FeatureGeometry {
   coordinates: [number, number]; // [longitude, latitude]
@@ -24,40 +23,39 @@ interface MarkerProps {
 const StolenMarker: React.FC<MarkerProps> = ({ map, feature, onClick }) => {
   const { geometry, properties } = feature;
   const markerRef = useRef<mapboxgl.Marker | null>(null);
-  const contentRef = useRef(document.createElement("div"));
 
   useEffect(() => {
-    markerRef.current = new mapboxgl.Marker(contentRef.current)
+    // Create the marker element
+    const markerElement = document.createElement("div");
+    markerElement.style.width = '2vw';
+    markerElement.style.height = '2vw';
+    markerElement.style.backgroundImage = 'url(../cartheftsymbol.svg)';
+    markerElement.style.backgroundSize = 'cover';
+    markerElement.style.cursor = 'pointer';
+    
+    // Create the marker
+    markerRef.current = new mapboxgl.Marker(markerElement)
       .setLngLat([geometry.coordinates[0], geometry.coordinates[1]])
       .addTo(map);
 
-    markerRef.current.getElement().addEventListener('click', onClick as any);
+    // Add click event listener with improved handling
+    if (onClick) {
+      markerElement.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        console.log('Stolen marker clicked');
+        onClick();
+      });
+    }
 
     return () => {
-      markerRef.current?.remove();
+      if (markerRef.current) {
+        markerRef.current.remove();
+      }
     };
-  }, [geometry.coordinates, map]);
+  }, [geometry.coordinates, map, onClick]);
 
-  return (
-        <>
-            {createPortal(
-                <div
-                    style={{
-                        width: '2vw',
-                        height: '2vw',
-                        backgroundImage: 'url(../cartheftsymbol.svg)',
-                        backgroundSize: 'cover',
-                        position: 'static',
-                        cursor: 'pointer',
-                        
-                    }}
-                    onClick={onClick && (() => onClick)}
-                >
-                </div>,
-                contentRef.current
-            )}
-        </>
-    );
+  return null;
 };
 
 export default StolenMarker;

@@ -83,6 +83,7 @@ export default function MapPage() {
   const [theftsLocations, setTheftsLocations] = useState<any[]>([])
   const [sightsLocations, setSightsLocations] = useState<any[]>([])
   const [sightings, setSightings] = useState<any[]>([])
+  const [selectionCounter, setSelectionCounter] = useState(0)
   
   const [filter, setFilter] = useState("all")
   const [searchQuery, setSearchQuery] = useState("")
@@ -93,6 +94,7 @@ export default function MapPage() {
 
   const mapRef = useRef<any>(null)
   const mapContainerRef = useRef<any>(null)
+  const reportsContainerRef = useRef<HTMLDivElement>(null)
 
   const fetchAllData = async () => {
     setIsLoading(true);
@@ -467,8 +469,6 @@ export default function MapPage() {
     }
   }, [])
 
-  const reportsContainerRef = useRef<HTMLDivElement>(null)
-
   useEffect(() => {
     // Update map center when selected report changes
     if (selectedReport && mapRef.current) {
@@ -488,35 +488,131 @@ export default function MapPage() {
   useLayoutEffect(() => {
     // Scroll to selected report in sidebar
     if (selectedReport && reportsContainerRef.current) {
-      const selectedCard = document.getElementById(selectedReport.id);
-      if (selectedCard) {
-        selectedCard.scrollIntoView({ behavior: "smooth", block: "center" });
-      }
+      console.log("Attempting to scroll to report:", selectedReport.id);
+      
+      // Add a small delay to ensure DOM is updated
+      const timeoutId = setTimeout(() => {
+        const selectedCard = document.getElementById(selectedReport.id);
+        if (selectedCard) {
+          console.log("Found card, scrolling to it");
+          selectedCard.scrollIntoView({ 
+            behavior: "smooth", 
+            block: "center",
+            inline: "nearest"
+          });
+        } else {
+          console.log("Card not found in DOM");
+        }
+      }, 50); // Small delay to ensure DOM is updated
+      
+      return () => clearTimeout(timeoutId);
     }
   }, [selectedReport]);
 
   const findTheftByLocation = (location: any) => {
-    return theftsData.find((report) => {
-      const reportLocation = report.location.coordinates;
-      return (
-        reportLocation.latitude === location.coordinates.latitude &&
-        reportLocation.longitude === location.coordinates.longitude
-      );
-    }
-    );
+    console.log("Searching for theft at location:", location);
+    console.log("Available thefts:", theftsData.length);
+    
+    const found = theftsData.find((report) => {
+      const reportLocation = report.location?.coordinates;
+      if (!reportLocation) {
+        console.warn("Report missing location coordinates:", report);
+        return false;
+      }
+      
+      // Use exact matching for now to debug
+      const latMatch = reportLocation.latitude === location.coordinates.latitude;
+      const lngMatch = reportLocation.longitude === location.coordinates.longitude;
+      
+      console.log("Comparing:", {
+        reportLat: reportLocation.latitude,
+        reportLng: reportLocation.longitude,
+        clickLat: location.coordinates.latitude,
+        clickLng: location.coordinates.longitude,
+        latMatch,
+        lngMatch,
+        licensePlate: report.info?.licensePlate
+      });
+      
+      return latMatch && lngMatch;
+    });
+    
+    console.log("Found theft:", found);
+    return found;
   }
 
   const findSightingByLocation = (location: any) => {
-    return sightings.find((report) => {
-      const reportLocation = report.location.coordinates;
-      return (
-        reportLocation.latitude === location.coordinates.latitude &&
-        reportLocation.longitude === location.coordinates.longitude
-      );
-    }
-    );
+    console.log("Searching for sighting at location:", location);
+    console.log("Available sightings:", sightings.length);
+    
+    const found = sightings.find((report) => {
+      const reportLocation = report.location?.coordinates;
+      if (!reportLocation) {
+        console.warn("Report missing location coordinates:", report);
+        return false;
+      }
+      
+      // Use exact matching for now to debug
+      const latMatch = reportLocation.latitude === location.coordinates.latitude;
+      const lngMatch = reportLocation.longitude === location.coordinates.longitude;
+      
+      console.log("Comparing:", {
+        reportLat: reportLocation.latitude,
+        reportLng: reportLocation.longitude,
+        clickLat: location.coordinates.latitude,
+        clickLng: location.coordinates.longitude,
+        latMatch,
+        lngMatch,
+        licensePlate: report.info?.licensePlate
+      });
+      
+      return latMatch && lngMatch;
+    });
+    
+    console.log("Found sighting:", found);
+    return found;
   }
 
+  // Handle popup close
+  const handlePopupClose = () => {
+    console.log("Handling popup close");
+    // Simple clear - no complex timing logic
+    setSelectedReport(null);
+  };
+
+  // Unified selection function that ensures consistent data structure
+  const selectReport = (report: any, reportType: 'theft' | 'sighting') => {
+    console.log("Selecting report:", report, "Type:", reportType);
+    console.log("Original report reportType:", report.reportType);
+    
+    // Always override the reportType to ensure consistency
+    const reportWithType = {
+      ...report,
+      reportType: reportType
+    };
+    
+    console.log("Report with type:", reportWithType);
+    console.log("Final reportType:", reportWithType.reportType);
+    
+    // Use a callback to ensure we're working with the latest state
+    setSelectedReport((prevSelected: any) => {
+      // If we're selecting the same report, don't update (prevents unnecessary re-renders)
+      if (prevSelected?.id === reportWithType.id && prevSelected?.reportType === reportWithType.reportType) {
+        console.log("Same report already selected, skipping update");
+        return prevSelected;
+      }
+      
+      console.log("Updating selected report from:", prevSelected, "to:", reportWithType);
+      // Increment selection counter to force popup re-render
+      setSelectionCounter(prev => prev + 1);
+      return reportWithType;
+    });
+  };
+
+  // Debug selected report changes
+  useEffect(() => {
+    console.log("Selected report changed:", selectedReport);
+  }, [selectedReport]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -677,7 +773,7 @@ export default function MapPage() {
         {(mapReady && mapRef.current && getFilteredTheftLocations()) &&  (
           getFilteredTheftLocations().map((loc, index)  => (
           <StolenMarker
-            key={index}
+            key={`theft-${index}`}
             map={mapRef.current}
             feature={{
               geometry: {
@@ -688,29 +784,38 @@ export default function MapPage() {
               }
             }}
             onClick={() => {
-              console.log("Clicked on marker at location:", loc);
-              setSelectedReport(findTheftByLocation(loc))
+              console.log("Clicked on theft marker at location:", loc);
+              const foundTheft = findTheftByLocation(loc);
+              if (foundTheft) {
+                console.log("Found theft report:", foundTheft);
+                console.log("Found theft reportType:", foundTheft.reportType);
+                selectReport(foundTheft, 'theft');
+              } else {
+                console.warn("No theft report found for location:", loc);
+              }
             }}
           />
         ))
         )}
-          {mapRef.current && selectedReport && (
-            <Popup
-            
-              map={mapRef.current}
-              coordinates={[
-                selectedReport.location.coordinates.longitude,
-                selectedReport.location.coordinates.latitude,
-              ]}
-              licensePlate={selectedReport.info.licensePlate}
-              photoUrl={selectedReport.info.photo}
-              />)}
+        
+        {/* Popup - Only render when we have a selected report and map is ready */}
+        {mapReady && mapRef.current && selectedReport && (
+          <Popup
+            key={`popup-${selectedReport.id}-${selectedReport.reportType}-${selectionCounter}`}
+            map={mapRef.current}
+            coordinates={[
+              selectedReport.location.coordinates.longitude,
+              selectedReport.location.coordinates.latitude,
+            ]}
+            reportData={selectedReport}
+            onClose={handlePopupClose}
+          />
+        )}
 
         {(mapReady && mapRef.current && getFilteredSightLocations()) && (
-(
           getFilteredSightLocations().map((loc, index) => (
             <SightMarker
-              key = {index}
+              key={`sighting-${index}`}
               map = {mapRef.current}
               feature = {{
                 geometry: {
@@ -722,12 +827,18 @@ export default function MapPage() {
               }}
 
               onClick={() => {
-              console.log("Clicked on marker at location:", loc);
-              setSelectedReport(findSightingByLocation(loc))
-            }}
+                console.log("Clicked on sighting marker at location:", loc);
+                const foundSighting = findSightingByLocation(loc);
+                if (foundSighting) {
+                  console.log("Found sighting report:", foundSighting);
+                  console.log("Found sighting reportType:", foundSighting.reportType);
+                  selectReport(foundSighting, 'sighting');
+                } else {
+                  console.warn("No sighting report found for location:", loc);
+                }
+              }}
             />
           ))
-        )
         )}
         {/* Sidebar */}
         <div className="w-96 bg-white border-l overflow-y-auto">
@@ -777,11 +888,26 @@ export default function MapPage() {
                   {/* All Reports */}
                   {getAllFilteredReports().map((data, index) => (
                     <Card
-                      key={index}
+                      key={`${data.id}-${data.reportType}`}
+                      id={data.id}
                       className={`cursor-pointer transition-all duration-200 relative group hover:shadow-md ${
-                        selectedReport?.id === data.id ? "ring-2 ring-blue-500" : ""
+                        selectedReport?.id === data.id && selectedReport?.reportType === data.reportType 
+                          ? "ring-2 ring-blue-500 bg-blue-50" 
+                          : ""
                       }`}
-                      onClick={() => setSelectedReport(data)}
+                      onClick={() => {
+                        console.log("Card clicked:", data);
+                        console.log("Current selectedReport:", selectedReport);
+                        console.log("Comparison:", {
+                          selectedId: selectedReport?.id,
+                          dataId: data.id,
+                          selectedType: selectedReport?.reportType,
+                          dataType: data.reportType,
+                          idMatch: selectedReport?.id === data.id,
+                          typeMatch: selectedReport?.reportType === data.reportType
+                        });
+                        selectReport(data, data.reportType as 'theft' | 'sighting');
+                      }}
                     >
                       <CardHeader className="pb-2">
                         <div className="flex items-center justify-between">
