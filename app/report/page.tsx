@@ -314,10 +314,19 @@ export default function ReportPage() {
                       <SelectValue placeholder="Select state" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="ca">California</SelectItem>
-                      <SelectItem value="ny">New York</SelectItem>
-                      <SelectItem value="tx">Texas</SelectItem>
-                      <SelectItem value="fl">Florida</SelectItem>
+                      <SelectItem value="ab">Alberta</SelectItem>
+                      <SelectItem value="bc">British Columbia</SelectItem>
+                      <SelectItem value="mb">Manitoba</SelectItem>
+                      <SelectItem value="nb">New Brunswick</SelectItem>
+                      <SelectItem value="nl">Newfoundland and Labrador</SelectItem>
+                      <SelectItem value="ns">Nova Scotia</SelectItem>
+                      <SelectItem value="nt">Northwest Territories</SelectItem>
+                      <SelectItem value="nu">Nunavut</SelectItem>
+                      <SelectItem value="on">Ontario</SelectItem>
+                      <SelectItem value="pe">Prince Edward Island</SelectItem>
+                      <SelectItem value="qc">Quebec</SelectItem>
+                      <SelectItem value="sk">Saskatchewan</SelectItem>
+                      <SelectItem value="yt">Yukon</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
