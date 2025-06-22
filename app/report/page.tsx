@@ -69,6 +69,7 @@ export default function ReportPage() {
 
   // Ref for debouncing
   const geocodeTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   // Forward geocoding function
   const geocodeAddress = async (searchText: string) => {
@@ -491,12 +492,13 @@ export default function ReportPage() {
                     onChange={handleFileUpload}
                     className="hidden"
                     id="file-upload"
+                    ref={fileInputRef}
                   />
                   <Button 
                     type="button" 
                     variant="outline" 
                     className="mt-4"
-                    onClick={() => document.getElementById('file-upload')?.click()}
+                    onClick={() => fileInputRef.current?.click()}
                   >
                     Choose Files
                   </Button>
