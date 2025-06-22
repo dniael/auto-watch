@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { ArrowLeft, MapPin, AlertTriangle, Eye, Search, Filter, ChevronDown } from "lucide-react"
 import Link from "next/link"
 import { useState } from "react"
-import { useRef, useEffect } from "react"
+import { useRef, useEffect, useLayoutEffect } from "react"
 import mapboxgl from "mapbox-gl"
 // import "@mapbox/mapbox-gl-geocoder/dist/mapbox-gl-geocoder.css";
 import "mapbox-gl/dist/mapbox-gl.css"
@@ -22,6 +22,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import Popup from "./popup"
 
 
 mapboxgl.accessToken = "pk.eyJ1IjoicGxhdGludW1jb3AiLCJhIjoiY21jNXU4bmoyMHR3ZjJsbzR0OWxpNjFkYSJ9.OHvYs3NyOpLGSMj1CMI1xg"
@@ -351,6 +352,8 @@ export default function MapPage() {
     }
   }, [])
 
+  const reportsContainerRef = useRef<HTMLDivElement>(null)
+
   useEffect(() => {
     // Update map center when selected report changes
     if (selectedReport && mapRef.current) {
@@ -361,11 +364,23 @@ export default function MapPage() {
         zoom: 15,
         essential: true, // This ensures the animation is not interrupted
       });
+      //scroll sidebar to selected report
+    
     }
   }
   , [selectedReport]);
 
-  const findByLocation = (location: any) => {
+  useLayoutEffect(() => {
+    // Scroll to selected report in sidebar
+    if (selectedReport && reportsContainerRef.current) {
+      const selectedCard = document.getElementById(selectedReport.id);
+      if (selectedCard) {
+        selectedCard.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }
+  }, [selectedReport]);
+
+  const findTheftByLocation = (location: any) => {
     return theftsData.find((report) => {
       const reportLocation = report.location.coordinates;
       return (
@@ -375,6 +390,18 @@ export default function MapPage() {
     }
     );
   }
+
+  const findSightingByLocation = (location: any) => {
+    return sightings.find((report) => {
+      const reportLocation = report.location.coordinates;
+      return (
+        reportLocation.latitude === location.coordinates.latitude &&
+        reportLocation.longitude === location.coordinates.longitude
+      );
+    }
+    );
+  }
+
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -547,11 +574,22 @@ export default function MapPage() {
             }}
             onClick={() => {
               console.log("Clicked on marker at location:", loc);
-              setSelectedReport(findByLocation(loc))
+              setSelectedReport(findTheftByLocation(loc))
             }}
           />
         ))
         )}
+          {mapRef.current && selectedReport && (
+            <Popup
+            
+              map={mapRef.current}
+              coordinates={[
+                selectedReport.location.coordinates.longitude,
+                selectedReport.location.coordinates.latitude,
+              ]}
+              licensePlate={selectedReport.info.licensePlate}
+              photoUrl={selectedReport.info.photo}
+              />)}
 
         {(mapReady && mapRef.current && getFilteredSightLocations()) && (
 (
@@ -567,6 +605,11 @@ export default function MapPage() {
                   mag: 0
                 }
               }}
+
+              onClick={() => {
+              console.log("Clicked on marker at location:", loc);
+              setSelectedReport(findSightingByLocation(loc))
+            }}
             />
           ))
         )
@@ -579,11 +622,15 @@ export default function MapPage() {
               <Input 
                 placeholder="Search by license plate..." 
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value)
+                  // focus the input when typing
+                  e.target.focus()                  
+                }}
               />
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-4 w-50" ref={reportsContainerRef}>
               <div className="flex items-center justify-between">
                 <h3 className="font-semibold text-gray-900">Recent Reports</h3>
                 {searchQuery && (
