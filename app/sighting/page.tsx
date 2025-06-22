@@ -191,6 +191,7 @@ export default function SightingPage() {
             context: details
           },
           info: {
+            licensePlate: licensePlate,
             photo: photoBlob
           },
           location: {
@@ -222,6 +223,7 @@ export default function SightingPage() {
           context: details
         },
         info: {
+           licensePlate: licensePlate,
           photo: ""
         },
         location: {
