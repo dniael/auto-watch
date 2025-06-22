@@ -619,43 +619,51 @@ export default function MapPage() {
   // Separate effect for line creation/removal
   useEffect(() => {
     if (mapRef.current && selectedLicensePlate) {
-      const allReports = [...theftsData, ...sightings];
-      const relatedReports = allReports
-        .filter(report => report.info?.licensePlate === selectedLicensePlate)
-        .sort((a, b) => {
-          const dateA = a.info?.date?.toDate ? a.info.date.toDate() : new Date(a.info.date);
-          const dateB = b.info?.date?.toDate ? b.info.date.toDate() : new Date(b.info.date);
-          return dateA.getTime() - dateB.getTime();
+      // Find the original theft report
+      const theftReport = theftsData.find(theft => theft.info?.licensePlate === selectedLicensePlate);
+      
+      // Find all related sightings
+      const relatedSightings = sightings.filter(sighting => sighting.info?.licensePlate === selectedLicensePlate);
+
+      if (theftReport && relatedSightings.length > 0) {
+        const theftCoordinates = [
+          theftReport.location.coordinates.longitude,
+          theftReport.location.coordinates.latitude
+        ];
+
+        const lineFeatures = relatedSightings.map(sighting => {
+          const sightingCoordinates = [
+            sighting.location.coordinates.longitude,
+            sighting.location.coordinates.latitude
+          ];
+          return {
+            type: "Feature",
+            properties: {},
+            geometry: {
+              type: "LineString",
+              coordinates: [theftCoordinates, sightingCoordinates]
+            }
+          } as GeoJSON.Feature<GeoJSON.LineString>;
         });
 
-      const coordinates = relatedReports.map(report => [
-        report.location.coordinates.longitude,
-        report.location.coordinates.latitude
-      ]);
-
-      if (coordinates.length > 1) {
-        const coordsString = JSON.stringify(coordinates);
+        const lineData: GeoJSON.FeatureCollection<GeoJSON.LineString> = {
+          type: "FeatureCollection",
+          features: lineFeatures
+        };
+        
+        const coordsString = JSON.stringify(lineData.features.map(f => f.geometry.coordinates));
 
         // Only update data if coordinates have changed
         if (coordsString !== lineCoordsRef.current) {
           lineCoordsRef.current = coordsString;
 
-          const lineString: GeoJSON.Feature<GeoJSON.LineString> = {
-            type: "Feature",
-            properties: {},
-            geometry: {
-              type: "LineString",
-              coordinates: coordinates
-            }
-          };
-
           const source = mapRef.current.getSource('route') as mapboxgl.GeoJSONSource;
           if (source) {
-            source.setData(lineString);
+            source.setData(lineData);
           } else {
             mapRef.current.addSource('route', {
               type: 'geojson',
-              data: lineString
+              data: lineData
             });
 
             mapRef.current.addLayer({
@@ -675,9 +683,16 @@ export default function MapPage() {
             });
           }
         }
+      } else {
+        // if no theft report or no sightings, clear the line
+        if (mapRef.current && mapRef.current.getSource('route')) {
+            mapRef.current.removeLayer('route');
+            mapRef.current.removeSource('route');
+        }
+        lineCoordsRef.current = null;
       }
     } else {
-      // Clear line
+      // Clear line if no license plate is selected
       if (mapRef.current && mapRef.current.getSource('route')) {
         mapRef.current.removeLayer('route');
         mapRef.current.removeSource('route');
