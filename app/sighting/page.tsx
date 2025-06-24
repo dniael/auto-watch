@@ -22,8 +22,17 @@ const AddressAutofillAny = dynamic(() => import('@mapbox/search-js-react').then(
   ssr: false // Disable server-side rendering for this component
 }) as any
 
+// useSearchParams must be wrapped in a Suspense boundary
+export default function SightingPageWrapper() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <SightingPage />
+    </Suspense>
+  )
+}
 
-export default function SightingPage() {
+
+function SightingPage() {
   const router = useRouter()
   const { toast } = useToast()
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null)
