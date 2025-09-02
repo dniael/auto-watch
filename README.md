@@ -16,11 +16,6 @@ Your project is live at:
 
 **[https://vercel.com/dniaels-projects/v0-car-theft-alert-system](https://vercel.com/dniaels-projects/v0-car-theft-alert-system)**
 
-## Build your app
-
-Continue building your app on:
-
-**[https://v0.dev/chat/projects/1CLRZFNaKxS](https://v0.dev/chat/projects/1CLRZFNaKxS)**
 
 ## How It Works
 
